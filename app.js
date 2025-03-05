@@ -9,7 +9,8 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 
 // Inisialisasi aplikasi Firebase
-const serviceAccount = require('./serviceAccountKey.json'); // Ganti dengan path file key Anda
+// const serviceAccount = require('./serviceAccountKey.json'); // Ganti dengan path file key Anda
+const serviceAccount = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
