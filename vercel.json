@@ -1,0 +1,24 @@
+{
+    "version": 2,
+    "builds": [
+      {
+        "src": "app.js",
+        "use": "@vercel/node"
+      }
+    ],
+    "env": {
+      "GOOGLE_SERVICE_ACCOUNT_KEY": "@google-service-account-key",
+      "JWT_SECRET": "@jwt-secret"
+    },
+    "routes": [
+      {
+        "src": "/docs",
+        "dest": "/app.js"
+      },
+      {
+        "src": "/(.*)",
+        "dest": "/app.js"
+      }
+    ]
+  }
+  
