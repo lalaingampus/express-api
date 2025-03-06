@@ -27,6 +27,10 @@ const UserModel = {
     const snapshot = await db.collection('users').get();
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
+
+  forgotPassword: async () => {
+    return ''
+  }
 };
 
 module.exports = UserModel;

@@ -7,8 +7,17 @@ const router = express.Router();
 
 /**
  * @swagger
+ * tags:
+ *   - name: Authentication
+ *     description: Proses autentikasi pengguna
+ */
+
+/**
+ * @swagger
  * /register:
  *   post:
+ *     tags:
+ *       - Authentication
  *     summary: Mendaftar pengguna baru
  *     description: Endpoint untuk mendaftarkan pengguna baru dan menyimpan ke Firestore.
  *     parameters:
@@ -38,6 +47,8 @@ router.post('/register', authController.register);
  * @swagger
  * /login:
  *   post:
+ *     tags:
+ *       - Authentication
  *     summary: Login pengguna dan dapatkan JWT
  *     description: Endpoint untuk login dan mendapatkan token JWT.
  *     parameters:
@@ -63,10 +74,41 @@ router.post('/register', authController.register);
  */
 router.post('/login', authController.login);
 
+
+/**
+ * @swagger
+ * /forgot-password:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *     summary: Melakukan Forgot Password
+ *     description: Endpoint untuk Forgot Password.
+ *     parameters:
+ *       - name: email
+ *         in: body
+ *         description: Nama pengguna
+ *         required: true
+ *         schema:
+ *           type: object
+ *           required:
+ *             - email
+ *           properties:
+ *             email:
+ *               type: string
+ *     responses:
+ *       200:
+ *         description: Token JWT berhasil dibuat
+ *       401:
+ *         description: Email salah
+ */
+router.post('/forgot-password', authController.login);
+
 /**
  * @swagger
  * /users:
  *   get:
+ *     tags:
+ *       - Users
  *     summary: Mendapatkan daftar users
  *     description: Endpoint untuk mendapatkan daftar pengguna dari Firestore
  *     security:

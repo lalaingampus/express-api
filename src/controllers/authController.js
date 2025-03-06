@@ -60,6 +60,15 @@ const getUsers = async (req, res) => {
   }
 };
 
+const forgotPassword = async (req, res) => {
+    try {
+        const users = await UserModel.getAllUsers();
+        res.status(200).json(users);
+      } catch (error) {
+        res.status(500).send('Error getting users: ' + error);
+      }
+};
+
 module.exports = {
   register,
   login,
