@@ -1,5 +1,5 @@
-// Import library yang diperlukan
-require('dotenv').config();  // Memuat environment variables dari file .env
+// Import libraries needed
+require('dotenv').config();  // Load environment variables from .env file
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
@@ -8,8 +8,8 @@ const bcrypt = require('bcryptjs');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 
-// Inisialisasi aplikasi Firebase
-const serviceAccount = require('./serviceAccountKey.json'); // Ganti dengan path file key Anda
+// Initialize Firebase
+const serviceAccount = require('./serviceAccountKey.json'); // Replace with your service account key path
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -18,18 +18,18 @@ admin.initializeApp({
 const db = admin.firestore();
 console.log('Connected to Firebase successfully!');
 
-// Inisialisasi Express.js
+// Initialize Express.js
 const app = express();
-app.use(express.json()); // Untuk parsing JSON
+app.use(express.json()); // To parse JSON bodies
 app.use(cors({
-    origin: 'http://localhost:3000', // Atau alamat IP yang digunakan
+    origin: 'http://localhost:3090', // Or the appropriate address
     methods: ['GET', 'POST'],
   }));
 
-// Mengambil JWT_SECRET dari file .env
+// JWT secret key from environment variables
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Swagger setup menggunakan Swagger 2.0 (OpenAPI 2.0)
+// Swagger setup (Swagger 2.0 / OpenAPI 2.0)
 const swaggerOptions = {
   swaggerDefinition: {
     swagger: '2.0',
@@ -43,24 +43,24 @@ const swaggerOptions = {
         type: 'apiKey',
         in: 'header',
         name: 'Authorization',
-        description: 'JWT token untuk autentikasi. Harus menggunakan format "Bearer <token>"',
+        description: 'JWT token for authentication. Use "Bearer <token>" format',
       },
     },
     security: [
       { jwtAuth: [] },
     ],
   },
-  apis: ['./app.js'], // Lokasi file untuk mendokumentasikan API
+  apis: ['./app.js'], // The file to document APIs
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// Middleware untuk memverifikasi token JWT
+// Middleware to verify JWT token
 const authenticateJWT = (req, res, next) => {
   const token = req.headers['authorization']?.split(' ')[1];
-  console.log('Authorization header:', req.headers['authorization']);  // Untuk memeriksa header authorization
-  
+  console.log('Authorization header:', req.headers['authorization']);  // For debugging
+
   if (!token) {
     return res.status(403).send('A token is required for authentication');
   }
@@ -69,142 +69,47 @@ const authenticateJWT = (req, res, next) => {
     if (err) {
       return res.status(403).send('Invalid or expired token');
     }
-    req.user = user;
+    req.user = user;  // Attach the decoded user to the request object
     next();
   });
 };
 
-/**
- * Endpoint untuk registrasi pengguna dan menyimpan pengguna ke Firestore
- * @swagger
- * /register:
- *   post:
- *     summary: Mendaftar pengguna baru
- *     description: Endpoint untuk mendaftarkan pengguna baru dan menyimpan ke Firestore.
- *     parameters:
- *       - name: username
- *         in: body
- *         description: Nama pengguna
- *         required: true
- *         schema:
- *           type: object
- *           required:
- *             - username
- *             - password
- *           properties:
- *             username:
- *               type: string
- *             password:
- *               type: string
- *     responses:
- *       200:
- *         description: Pengguna berhasil terdaftar
- *       400:
- *         description: Username sudah ada
- */
-app.post('/register', async (req, res) => {
-  const { email, username, password } = req.body;
 
-  // Cek apakah username sudah terdaftar
-  const snapshot = await db.collection('users').where('username', '==', username).get();
-  if (!snapshot.empty) {
-    return res.status(400).send('Username already exists');
-  }
-
-  // Hash password
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  // Menyimpan data pengguna ke Firestore
-  try {
-    const docRef = await db.collection('users').add({
-      username,
-      email,
-      password: hashedPassword,
-      createdAt: new Date(),
-    });
-
-    res.status(200).send('User registered successfully');
-  } catch (error) {
-    res.status(500).send('Error registering user: ' + error);
-  }
-});
-
-/**
- * Endpoint untuk login pengguna dan menghasilkan JWT token
- * @swagger
- * /login:
- *   post:
- *     summary: Login pengguna dan dapatkan JWT
- *     description: Endpoint untuk login dan mendapatkan token JWT.
- *     parameters:
- *       - name: username
- *         in: body
- *         description: Nama pengguna
- *         required: true
- *         schema:
- *           type: object
- *           required:
- *             - username
- *             - password
- *           properties:
- *             username:
- *               type: string
- *             password:
- *               type: string
- *     responses:
- *       200:
- *         description: Token JWT berhasil dibuat
- *       401:
- *         description: Username atau password salah
- */
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
-  // Cek apakah username ada di Firestore
+  // Check if username exists in Firestore
   const snapshot = await db.collection('users').where('username', '==', username).get();
   if (snapshot.empty) {
     return res.status(401).send('Username or password incorrect');
   }
 
   const user = snapshot.docs[0].data();
-  console.log('ini apa ya ?', user)
+  console.log('User data:', user);
 
-  // Verifikasi password
+  // Verify password
   bcrypt.compare(password, user.password, (err, result) => {
     if (err || !result) {
       return res.status(401).send('Username or password incorrect');
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: snapshot.docs[0].id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
+    // Generate JWT token with user information
+    const token = jwt.sign(
+      { 
+        userId: snapshot.docs[0].id, 
+        username: user.username, 
+        createdAt: new Date().toISOString()  // Add createdAt to the JWT payload
+      }, 
+      JWT_SECRET, 
+      { expiresIn: '1h' }
+    );
+
+    // Send token in response
     res.json({ token });
   });
 });
 
-/**
- * Endpoint untuk mendapatkan daftar users (hanya untuk yang terautentikasi)
- * @swagger
- * /users:
- *   get:
- *     summary: Mendapatkan daftar users
- *     description: Endpoint untuk mendapatkan daftar pengguna dari Firestore
- *     security:
- *       - jwtAuth: []
- *     responses:
- *       200:
- *         description: Daftar users
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: string
- *                   username:
- *                     type: string
- */
+
 app.get('/users', authenticateJWT, async (req, res) => {
   try {
     const snapshot = await db.collection('users').get();
@@ -215,7 +120,156 @@ app.get('/users', authenticateJWT, async (req, res) => {
   }
 });
 
-// Menjalankan server
+
+app.post('/data_pemasukan', authenticateJWT, async (req, res) => {
+  const { selectedCategory, suami, istri, total, keterangan } = req.body;
+  const userId = req.user.userId;  // Get userId from JWT token
+
+  // Data to be added
+  const newPemasukan = {
+    selectedCategory,
+    suami: suami || null,
+    istri: istri || null,
+    total: total || null,
+    keterangan: keterangan || '',
+    userId,  // Track who created the record
+    createdAt: new Date(),
+  };
+
+  try {
+    // Add new income data to Firestore
+    const docRef = await db.collection('data_pemasukan').add(newPemasukan);
+
+    // Send success response
+    res.status(201).json({
+      id: docRef.id,
+      ...newPemasukan,
+    });
+  } catch (error) {
+    res.status(500).send('Error creating pemasukan: ' + error);
+  }
+});
+
+
+app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
+  const { kategori, nominal, sumber, keterangan } = req.body;
+  const userId = req.user.userId;  // Get userId from JWT token
+
+  
+
+  // Data to be added
+  const newPengeluaran = {
+    kategori,
+    nominal,
+    sumber,
+    keterangan,
+    userId,  // Track who created the record
+    createdAt: new Date(),
+  };
+
+  try {
+    // Add new expense data to Firestore
+    const docRef = await db.collection('data_pengeluaran').add(newPengeluaran);
+
+    // Send success response
+    res.status(201).json({
+      id: docRef.id,
+      ...newPengeluaran,
+    });
+  } catch (error) {
+    res.status(500).send('Error creating pengeluaran: ' + error);
+  }
+});
+
+/**
+ * Endpoint to get income data (pemasukan list)
+ * @swagger
+ * /pemasukan_list:
+ *   get:
+ *     summary: Get list of income records
+ *     description: Get the list of income records created by the authenticated user
+ *     security:
+ *       - jwtAuth: []
+ *     responses:
+ *       200:
+ *         description: List of income records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   selectedCategory:
+ *                     type: string
+ *                   suami:
+ *                     type: string
+ *                   istri:
+ *                     type: string
+ *                   total:
+ *                     type: number
+ *                   keterangan:
+ *                     type: string
+ */
+app.get('/pemasukan_list', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Fetch income data created by the authenticated user
+    const snapshot = await db.collection('data_pemasukan').where('userId', '==', userId).get();
+    const pemasukanList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(pemasukanList);
+  } catch (error) {
+    res.status(500).send('Error getting pemasukan: ' + error);
+  }
+});
+
+/**
+ * Endpoint to get expense data (pengeluaran list)
+ * @swagger
+ * /pengeluaran_list:
+ *   get:
+ *     summary: Get list of expense records
+ *     description: Get the list of expense records created by the authenticated user
+ *     security:
+ *       - jwtAuth: []
+ *     responses:
+ *       200:
+ *         description: List of expense records
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   kategori:
+ *                     type: string
+ *                   nominal:
+ *                     type: number
+ *                   sumber:
+ *                     type: string
+ *                   keterangan:
+ *                     type: string
+ */
+app.get('/pengeluaran_list', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Fetch expense data created by the authenticated user
+    const snapshot = await db.collection('data_pengeluaran').where('userId', '==', userId).get();
+    const pengeluaranList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(pengeluaranList);
+  } catch (error) {
+    res.status(500).send('Error getting pengeluaran: ' + error);
+  }
+});
+
+// Start the server
 const PORT = process.env.PORT || 3090;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
