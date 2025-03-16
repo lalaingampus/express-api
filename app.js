@@ -269,7 +269,7 @@ app.get('/list_data_hutang', authenticateJWT, async (req, res) => {
 app.post('/calculate_hutang', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.userId;  // Get userId from JWT token
-    const { hutangBayar, selectedHutang, selectedSumber, keterangan } = req.body;  // Get hutangBayar, selectedHutang, and selectedSumber from request body
+    const { hutangBayar, selectedHutang, selectedSumber, parsedAmount, keterangan } = req.body;  // Get hutangBayar, selectedHutang, and selectedSumber from request body
 
     // Check if hutangBayar, selectedHutang, and selectedSumber are provided
     if (!hutangBayar || !selectedHutang || !selectedSumber) {
@@ -312,13 +312,16 @@ app.post('/calculate_hutang', authenticateJWT, async (req, res) => {
     const partnerId = pemasukanData.partnerId;
 
     // Check if pemasukan amount is sufficient to pay the debt (from suami or istri)
-    const updatedPemasukanAmount = 
-      pemasukanData.suami === 0 ? pemasukanData.istri - parseFloat(hutangBayar) : 
-      pemasukanData.istri === 0 ? pemasukanData.suami - parseFloat(hutangBayar) : 
-      pemasukanData.suami - parseFloat(hutangBayar);
+    let updatedSuamiAmount = pemasukanData.suami;
+    let updatedIstriAmount = pemasukanData.istri;
 
-    if (updatedPemasukanAmount < 0) {
-      return res.status(400).send('Saldo tidak cukup');
+    // Deduct the hutangBayar from suami or istri based on which one has a balance
+    if (pemasukanData.suami >= parseFloat(hutangBayar)) {
+      updatedSuamiAmount = pemasukanData.suami - parseFloat(hutangBayar);
+    } else if (pemasukanData.istri >= parseFloat(hutangBayar)) {
+      updatedIstriAmount = pemasukanData.istri - parseFloat(hutangBayar);
+    } else {
+      return res.status(400).send('Saldo suami atau istri tidak cukup');
     }
 
     // Subtract hutangBayar from both pengeluaran and pemasukan
@@ -329,9 +332,10 @@ app.post('/calculate_hutang', authenticateJWT, async (req, res) => {
       amount: updatedPengeluaranAmount
     });
 
-    // Update pemasukan document with the new amount (for both user and partner if applicable)
+    // Update pemasukan document with the new suami or istri amount
     await pemasukanDocRef.update({
-      amount: updatedPemasukanAmount
+      suami: updatedSuamiAmount,
+      istri: updatedIstriAmount
     });
 
     // If there's a partner, also update the partner's pemasukan
@@ -340,10 +344,17 @@ app.post('/calculate_hutang', authenticateJWT, async (req, res) => {
       const partnerPemasukanDocSnapshot = await partnerPemasukanDocRef.get();
       if (partnerPemasukanDocSnapshot.exists) {
         const partnerPemasukanData = partnerPemasukanDocSnapshot.data();
-        const updatedPartnerPemasukanAmount = partnerPemasukanData.amount - parseFloat(hutangBayar);
+        let updatedPartnerAmount = partnerPemasukanData.amount;
+
+        // Deduct hutangBayar from partner's amount as well
+        if (partnerPemasukanData.suami === 0) {
+          updatedPartnerAmount = partnerPemasukanData.istri - parseFloat(hutangBayar);
+        } else if (partnerPemasukanData.istri === 0) {
+          updatedPartnerAmount = partnerPemasukanData.suami - parseFloat(hutangBayar);
+        }
 
         await partnerPemasukanDocRef.update({
-          amount: updatedPartnerPemasukanAmount
+          amount: updatedPartnerAmount
         });
       }
     }
@@ -373,7 +384,8 @@ app.post('/calculate_hutang', authenticateJWT, async (req, res) => {
       const data = doc.data();
       return { 
         id: doc.id, 
-        amount: data.amount, 
+        suami: data.suami, 
+        istri: data.istri, 
         hutangBayar: parseFloat(hutangBayar),  // Include hutangBayar in the response
         ...data 
       };
@@ -385,7 +397,7 @@ app.post('/calculate_hutang', authenticateJWT, async (req, res) => {
     });
 
     pemasukanList.forEach(item => {
-      console.log('Updated Pemasukan Amount:', item.amount);
+      console.log('Updated Pemasukan Amount (Suami/ Istri):', item.suami, item.istri);
     });
 
     // Respond with the updated pengeluaran and pemasukan lists
@@ -394,116 +406,6 @@ app.post('/calculate_hutang', authenticateJWT, async (req, res) => {
     res.status(500).send('Error updating pengeluaran and pemasukan: ' + error);
   }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// app.post('/data_hutang', authenticateJWT, async (req, res) => {
-//   let { totalHutang, selectedSumber, hutangBayar } = req.body;  // 'hutangBayar' is passed in the request body
-//   const userId = req.user.userId;  // Get userId from JWT token
-  
-//   // Ensure totalHutang starts as a number, if not, initialize as 0
-//   totalHutang = Number(totalHutang) || 0;
-
-//   // Ensure hutangBayar starts as a number, if not, initialize as 0
-//   hutangBayar = Number(hutangBayar) || 0;
-
-//   try {
-//     // Query to get all documents from 'data_pengeluaran' where selectedCategory is 'Hutang'
-//     const hutangSnapshot = await db.collection('data_pengeluaran')
-//       .where('selectedCategory', '==', 'Hutang')
-//       .get();
-
-//     // Iterate through each document and sum the 'amount' values
-//     console.log('list daftar hutang', hutangSnapshot.createdAt)
-//     // hutangSnapshot.forEach(doc => {
-//     //   const data = doc.data();
-//     //   let amount = data.amount;
-      
-//     //   // Convert 'amount' to a number if it's not already
-//     //   amount = Number(amount);
-      
-//     //   if (isNaN(amount)) {
-//     //     console.log(`Invalid or missing amount field in document ${doc.id}`);
-//     //   } else {
-//     //     totalHutang += amount;
-//     //     console.log(`Added ${amount} to totalHutang. Current totalHutang: ${totalHutang}`);
-//     //   }
-//     // });
-
-//     // // Subtract hutangBayar from totalHutang
-//     // totalHutang -= hutangBayar;
-//     // console.log(`After payment, totalHutang is reduced by ${hutangBayar}. Updated totalHutang: ${totalHutang}`);
-
-//     // // Send back the updated totalHutang value as a response
-//     // res.status(200).json({ totalHutang });
-
-//   } catch (error) {
-//     console.error('Error retrieving hutang data: ', error);
-//     res.status(500).send('Internal Server Error');
-//   }
-// });
-
-
-
-
-
-
-
-// app.post('/data_hutang', authenticateJWT, async (req, res) => {
-//   const { hutangBayar, selectedSumber } = req.body;
-//   const userId = req.user.userId;  // Get userId from JWT token
-  
-//   // Query to get all documents from 'data_pengeluaran' where selectedCategory is 'Hutang'
-//   try {
-//     const hutangSnapshot = await db.collection('data_pengeluaran')
-//       .where('selectedCategory', '==', 'Hutang')
-//       .get();
-    
-//       console.log('ini data hutang', hutangSnapshot.amount)
-//     // // Sum the 'amount' of each document where selectedCategory is 'Hutang'
-//     // let totalHutang = 0;
-//     // hutangSnapshot.forEach(doc => {
-//     //   const data = doc.data();
-//     //   totalHutang += data.amount || 0;
-//     // });
-
-//     // // Calculate the remaining hutang after payment
-//     // const remainingHutang = totalHutang - hutangBayar;
-
-//     // // Prepare the data to be added to 'data_hutang' collection
-//     // const newHutangData = {
-//     //   hutang: remainingHutang,  // Store the updated hutang amount after the payment
-//     //   hutangBayar,              // The amount paid (from the request body)
-//     //   selectedSumber,           // The selected source (from the request body)
-//     //   userId,                   // The userId who is creating the record
-//     //   createdAt: new Date(),
-//     // };
-
-//     // // Add the new hutang data to 'data_hutang'
-//     // const docRef = await db.collection('data_hutang').add(newHutangData);
-
-//     // // Send success response
-//     // res.status(201).json({
-//     //   id: docRef.id,
-//     //   ...newHutangData,
-//     // });
-//   } catch (error) {
-//     res.status(500).send('Error creating hutang: ' + error);
-//   }
-// });
-
 
 app.get('/pemasukan_list', authenticateJWT, async (req, res) => {
   try {
@@ -518,7 +420,6 @@ app.get('/pemasukan_list', authenticateJWT, async (req, res) => {
   }
 });
 
-
 app.get('/pengeluaran_list', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.userId;  // Get userId from JWT token
@@ -531,6 +432,175 @@ app.get('/pengeluaran_list', authenticateJWT, async (req, res) => {
     res.status(500).send('Error getting pengeluaran: ' + error);
   }
 });
+
+app.post('/move_pengeluaran_to_rekap', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Fetch data from the 'data_pengeluaran' collection
+    const snapshot = await db.collection('data_pengeluaran')
+      .where('userId', '==', userId)
+      .get();
+
+    // Initialize variables to store the aggregated data
+    let totalPengeluaran = 0;
+    const pengeluaranData = [];
+
+    // Loop through the data to sum the expenses
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      totalPengeluaran += data.amount;  // Sum the amount from each document
+      pengeluaranData.push({
+        id: doc.id,
+        ...data,  // Add document data (without the id field)
+      });
+    });
+
+    // Check if there is data to move
+    if (pengeluaranData.length > 0) {
+      // Create a new document in 'rekap_data_pengeluaran' without removing data from 'data_pengeluaran'
+      await db.collection('rekap_data_pengeluaran').add({
+        userId,
+        totalPengeluaran,  // Insert total sum of expenses
+        month: new Date().getMonth() + 1,  // Example: Store the current month
+        year: new Date().getFullYear(),    // Store the current year
+        data: pengeluaranData,  // Store the original data (if needed)
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      res.status(200).send('Data successfully copied to rekap_data_pengeluaran.');
+    } else {
+      res.status(404).send('No data found to copy.');
+    }
+  } catch (error) {
+    console.error('Error moving data:', error);
+    res.status(500).send('Error moving data: ' + error.message);
+  }
+});
+
+
+app.post('/move_pemasukan_to_rekap', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Fetch data from the 'data_pemasukan' collection
+    const snapshot = await db.collection('data_pemasukan')
+      .where('userId', '==', userId)
+      .get();
+
+    // Initialize variables to store the aggregated data
+    let totalPemasukan = 0;
+    const pemasukanData = [];
+
+    // Loop through the data to sum the expenses
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      totalPemasukan += data.amount;  // Sum the amount from each document
+      pemasukanData.push({
+        id: doc.id,
+        ...data,  // Add document data (without the id field)
+      });
+    });
+
+    // Check if there is data to move
+    if (pemasukanData.length > 0) {
+      // Create a new document in 'rekap_data_pengeluaran' without removing data from 'data_pengeluaran'
+      await db.collection('rekap_data_pemasukan').add({
+        userId,
+        totalPemasukan,  // Insert total sum of expenses
+        month: new Date().getMonth() + 1,  // Example: Store the current month
+        year: new Date().getFullYear(),    // Store the current year
+        data: pemasukanData,  // Store the original data (if needed)
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      res.status(200).send('Data successfully copied to rekap_data_pemasukan.');
+    } else {
+      res.status(404).send('No data found to copy.');
+    }
+  } catch (error) {
+    console.error('Error moving data:', error);
+    res.status(500).send('Error moving data: ' + error.message);
+  }
+});
+
+app.get('/rekap_pengeluaran_list', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Ambil userId dari JWT token
+
+    // Ambil parameter bulan dan tahun dari query string
+    const { bulan, tahun } = req.query;
+
+    // Mulai query Firestore untuk mengambil data berdasarkan userId
+    let query = db.collection('rekap_data_pengeluaran').where('userId', '==', userId);
+
+    // Jika bulan dan tahun disediakan, tambahkan filter untuk bulan dan tahun
+    if (bulan && tahun) {
+      query = query.where('month', '==', parseInt(bulan))
+                   .where('year', '==', parseInt(tahun));
+    }
+
+    // Ambil data dari Firestore
+    const snapshot = await query.get();
+    if (snapshot.empty) {
+      return res.status(404).send('Data pengeluaran tidak ditemukan untuk bulan dan tahun yang diminta.');
+    }
+
+    // Format data yang diambil
+    const pengeluaranList = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Kirimkan data ke frontend
+    res.status(200).json(pengeluaranList);
+
+  } catch (error) {
+    console.error('Error getting pengeluaran: ', error);
+    res.status(500).send('Error getting pengeluaran: ' + error.message);
+  }
+});
+
+app.get('/rekap_pemasukan_list', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Ambil userId dari JWT token
+
+    // Ambil parameter bulan dan tahun dari query string
+    const { bulan, tahun } = req.query;
+
+    // Mulai query Firestore untuk mengambil data berdasarkan userId
+    let query = db.collection('rekap_data_pemasukan').where('userId', '==', userId);
+
+    // Jika bulan dan tahun disediakan, tambahkan filter untuk bulan dan tahun
+    if (bulan && tahun) {
+      query = query.where('month', '==', parseInt(bulan))
+                   .where('year', '==', parseInt(tahun));
+    }
+
+    // Ambil data dari Firestore
+    const snapshot = await query.get();
+    if (snapshot.empty) {
+      return res.status(404).send('Data pemasukan tidak ditemukan untuk bulan dan tahun yang diminta.');
+    }
+
+    // Format data yang diambil
+    const pemasukanList = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Kirimkan data ke frontend
+    res.status(200).json(pemasukanList);
+
+  } catch (error) {
+    console.error('Error getting pengeluaran: ', error);
+    res.status(500).send('Error getting pengeluaran: ' + error.message);
+  }
+});
+
+
 
 // Start the server
 const PORT = process.env.PORT || 3090;
