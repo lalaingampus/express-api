@@ -155,6 +155,59 @@ app.post('/data_pemasukan', authenticateJWT, async (req, res) => {
   }
 });
 
+app.get('/get_data_pemasukan', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;  // Get userId from JWT token
+
+  try {
+    // Query Firestore to get all pemasukan data for the authenticated user
+    const snapshot = await db.collection('data_pemasukan')
+                              .where('userId', '==', userId)
+                              .get();
+
+    if (snapshot.empty) {
+      return res.status(404).json({ message: 'No data found' });
+    }
+
+    // Prepare the result
+    const data = snapshot.docs.map(doc => {
+      const dataItem = doc.data();
+
+      // Determine which value to use based on suami or istri
+      let amountToDisplay = null;
+
+      // Display `istri` if `suami` is 0 and `istri` > 0, otherwise display `suami`
+      if (dataItem.suami === 0 && dataItem.istri > 0) {
+        amountToDisplay = dataItem.istri;
+      } else if (dataItem.istri === 0 && dataItem.suami > 0) {
+        amountToDisplay = dataItem.suami;
+      } else if (dataItem.suami > 0) {
+        amountToDisplay = dataItem.suami; // Default to suami if both are non-zero
+      } else if (dataItem.istri > 0) {
+        amountToDisplay = dataItem.istri; // Display istri if suami is 0
+      }
+
+      // Return the modified item with amountToDisplay
+      return {
+        id: doc.id,
+        selectedCategory: dataItem.selectedCategory,
+        selectedPerson: dataItem.selectedPerson,
+        suami: dataItem.suami,
+        istri: dataItem.istri,
+        total: dataItem.total,
+        keterangan: dataItem.keterangan,
+        amountToDisplay, // Include the computed amountToDisplay
+      };
+    });
+
+    // Send the response
+    res.status(200).json(data);
+
+  } catch (error) {
+    res.status(500).send('Error fetching pemasukan data: ' + error);
+  }
+});
+
+
 
 
 app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
@@ -194,60 +247,6 @@ app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
 });
 
 
-// app.get('/list_data_hutang', authenticateJWT, async (req, res) => {
-//   let { totalHutang, hutangBayar } = req.query;  // Change from req.body to req.query to handle GET requests
-//   const userId = req.user.userId;  // Get userId from JWT token
-
-//   // Ensure totalHutang and hutangBayar are numbers, if not, initialize as 0
-//   totalHutang = Number(totalHutang) || 0;
-//   hutangBayar = Number(hutangBayar) || 0;
-
-//   try {
-//     // Query to get all documents from 'data_pengeluaran' where selectedCategory is 'Hutang'
-//     const hutangSnapshot = await db.collection('data_pengeluaran')
-//       .where('selectedCategory', '==', 'Hutang')
-//       .get();
-
-//     // Create an array to store the formatted results
-//     const hutangData = [];
-
-//     // Iterate through each document and format the data
-//     hutangSnapshot.forEach(doc => {
-//       const data = doc.data();
-
-//       const createdAt = data.createdAt; // Assuming createdAt exists in your document
-//       const amount = data.amount; // Assuming amount exists in your document
-
-//       // Check if 'amount' exists
-//       if (amount !== undefined && amount !== null) {
-//         // Format the date in Indonesian format (dd month yyyy)
-//         const formattedDate = createdAt.toDate().toLocaleDateString('id-ID', {
-//           year: 'numeric',
-//           month: 'long',
-//           day: 'numeric',
-//         });
-
-//         // Format the amount with "Rp." and separator (for currency formatting)
-//         const formattedAmount = "Rp. " + amount.toLocaleString('id-ID', {
-//           minimumFractionDigits: 0, // Ensure no decimals
-//           maximumFractionDigits: 0  // Ensure no decimals
-//         });
-
-//         // Push the formatted data to the array
-//         hutangData.push({ date: formattedDate, amount: formattedAmount });
-//       } else {
-//         // If no amount found, log it
-//         console.log('Amount not found for this document.');
-//       }
-//     });
-
-//     // Send the formatted data as the response
-//     res.status(200).json(hutangData);
-//   } catch (error) {
-//     console.error('Error getting data:', error);
-//     res.status(500).send({ error: 'An error occurred while processing data.' });
-//   }
-// });
 
 app.get('/list_data_hutang', authenticateJWT, async (req, res) => {
   try {
@@ -419,6 +418,161 @@ app.get('/pemasukan_list', authenticateJWT, async (req, res) => {
     res.status(500).send('Error getting pemasukan: ' + error);
   }
 });
+
+app.get('/pemasukan_list_suami', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Fetch income data created by the authenticated user with suami == 0 and istri > 0
+    const snapshot = await db.collection('data_pemasukan')
+      .where('userId', '==', userId)
+      .where('selectedPerson', '==', 'Suami')
+      .get();
+    
+    const pemasukanList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(pemasukanList);
+  } catch (error) {
+    res.status(500).send('Error getting pemasukan: ' + error);
+  }
+});
+
+app.get('/pemasukan_list_istri', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Fetch income data created by the authenticated user with suami == 0 and istri > 0
+    const snapshot = await db.collection('data_pemasukan')
+      .where('userId', '==', userId)
+      .where('selectedPerson', '==', 'Istri')
+      .get();
+    
+    const pemasukanList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(pemasukanList);
+  } catch (error) {
+    res.status(500).send('Error getting pemasukan: ' + error);
+  }
+});
+
+app.get('/pengeluaran_list_istri', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Step 1: Fetch the relevant data_pemasukan document where 'suami == 0'
+    const pemasukanSnapshot = await db.collection('data_pengeluaran')
+      .where('suami', '==', null)
+      .where('userId', '==', userId)
+      .get();
+
+    if (pemasukanSnapshot.empty) {
+      return res.status(404).send('No pemasukan data found for suami == 0');
+    }
+
+    // Assuming you only expect one pemasukan document with suami == 0
+    const pemasukanData = pemasukanSnapshot.docs[0].data();
+    const pemasukanId = pemasukanSnapshot.docs[0].id;  // ID from data_pemasukan
+
+    // Step 2: Use the pemasukanId in your pengeluaran query
+    const snapshot = await db.collection('data_pengeluaran')
+      .where('userId', '==', userId)
+      .where('selectedSumber', '==', pemasukanId)  // Referencing the pemasukanId here
+      .get();
+    
+    const pengeluaranList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(pengeluaranList);
+    
+  } catch (error) {
+    res.status(500).send('Error getting pengeluaran: ' + error);
+  }
+});
+
+app.get('/pengeluaran_list_suami', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Step 1: Fetch the relevant data_pemasukan document where 'suami == 0'
+    const pemasukanSnapshot = await db.collection('data_pengeluaran')
+      .where('istri', '==', null)
+      .where('userId', '==', userId)
+      .get();
+
+    if (pemasukanSnapshot.empty) {
+      return res.status(404).send('No pemasukan data found for suami == 0');
+    }
+
+    // Assuming you only expect one pemasukan document with suami == 0
+    const pemasukanData = pemasukanSnapshot.docs[0].data();
+    const pemasukanId = pemasukanSnapshot.docs[0].id;  // ID from data_pemasukan
+
+    // Step 2: Use the pemasukanId in your pengeluaran query
+    const snapshot = await db.collection('data_pengeluaran')
+      .where('userId', '==', userId)
+      .where('selectedSumber', '==', pemasukanId)  // Referencing the pemasukanId here
+      .get();
+    
+    const pengeluaranList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(pengeluaranList);
+    
+  } catch (error) {
+    res.status(500).send('Error getting pengeluaran: ' + error);
+  }
+});
+
+app.get('/pengeluaran_list_semua', authenticateJWT, async (req, res) => {
+  try {
+    const userId = req.user.userId;  // Get userId from JWT token
+
+    // Step 1: Fetch the relevant data_pemasukan document for istri where 'suami == null'
+    const pemasukanIstriSnapshot = await db.collection('data_pemasukan')
+      .where('suami', '==', null)  // Adjust according to actual data logic for Istri
+      .where('userId', '==', userId)
+      .get();
+
+    if (pemasukanIstriSnapshot.empty) {
+      return res.status(404).send('No pemasukan data found for Istri');
+    }
+
+    const pemasukanIstriId = pemasukanIstriSnapshot.docs[0].id;  // ID from data_pemasukan for istri
+
+    // Step 2: Fetch the relevant data_pemasukan document for suami where 'istri == null'
+    const pemasukanSuamiSnapshot = await db.collection('data_pemasukan')
+      .where('istri', '==', null)  // Adjust according to actual data logic for Suami
+      .where('userId', '==', userId)
+      .get();
+
+    if (pemasukanSuamiSnapshot.empty) {
+      return res.status(404).send('No pemasukan data found for Suami');
+    }
+
+    const pemasukanSuamiId = pemasukanSuamiSnapshot.docs[0].id;  // ID from data_pemasukan for suami
+
+    // Step 3: Fetch pengeluaran data for Istri
+    const pengeluaranIstriSnapshot = await db.collection('data_pengeluaran')
+      .where('userId', '==', userId)
+      .where('selectedSumber', '==', pemasukanIstriId)  // Istri reference
+      .get();
+
+    const pengeluaranIstriList = pengeluaranIstriSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Step 4: Fetch pengeluaran data for Suami
+    const pengeluaranSuamiSnapshot = await db.collection('data_pengeluaran')
+      .where('userId', '==', userId)
+      .where('selectedSumber', '==', pemasukanSuamiId)  // Suami reference
+      .get();
+
+    const pengeluaranSuamiList = pengeluaranSuamiSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Step 5: Combine the results
+    const combinedPengeluaranList = [...pengeluaranIstriList, ...pengeluaranSuamiList];
+
+    // Return the combined list
+    res.status(200).json(combinedPengeluaranList);
+    
+  } catch (error) {
+    res.status(500).send('Error getting pengeluaran: ' + error);
+  }
+});
+
+
 
 app.get('/pengeluaran_list', authenticateJWT, async (req, res) => {
   try {
