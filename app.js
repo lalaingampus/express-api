@@ -196,6 +196,7 @@ app.get('/get_data_pemasukan', authenticateJWT, async (req, res) => {
         total: dataItem.total,
         keterangan: dataItem.keterangan,
         amountToDisplay, // Include the computed amountToDisplay
+        createdAt, // Add createdAt to the response
       };
     });
 
@@ -214,37 +215,71 @@ app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
   const { selectedCategory, amount, selectedSumber, keterangan } = req.body;
   const userId = req.user.userId;  // Get userId from JWT token
 
-  // Validate and convert the amount to a number
   const parsedAmount = Number(amount);
 
-  // Check if the parsed amount is a valid number
   if (isNaN(parsedAmount)) {
-    return res.status(400).send('Invalid amount. Please provide a valid number.');
+    return res.status(400).json({ message: 'Invalid amount. Please provide a valid number.' });
   }
 
-  // Data to be added
-  const newPengeluaran = {
-    selectedCategory,
-    selectedSumber,
-    amount: parsedAmount,  // Store as a number
-    keterangan,
-    userId,  // Track who created the record
-    createdAt: new Date(),
-  };
-
   try {
-    // Add new expense data to Firestore
+    const newPengeluaran = {
+      selectedCategory,
+      selectedSumber,
+      amount: parsedAmount,
+      keterangan,
+      userId,
+      createdAt: new Date(),
+    };
+
     const docRef = await db.collection('data_pengeluaran').add(newPengeluaran);
 
-    // Send success response
+    const sumberDocRef = db.collection('data_pemasukan').doc(selectedSumber);
+    const sumberDoc = await sumberDocRef.get();
+
+    if (!sumberDoc.exists) {
+      return res.status(404).json({ message: 'Sumber not found. Invalid selectedSumber ID.' });
+    }
+
+    const sumberData = sumberDoc.data();
+    const suamiBalance = sumberData.suami || 0;
+    const istriBalance = sumberData.istri || 0;
+
+    if (suamiBalance === 0 && istriBalance === 0) {
+      return res.status(400).json({ message: 'Saldo tidak mencukupi. Both suami and istri have no balance.' });
+    }
+
+    let newBalance;
+    if (suamiBalance === 0) {
+      if (istriBalance >= parsedAmount) {
+        newBalance = istriBalance - parsedAmount;
+        await sumberDocRef.update({ istri: newBalance });
+      } else {
+        return res.status(400).json({ message: 'Saldo tidak mencukupi. Not enough balance in istri to deduct.' });
+      }
+    } else if (istriBalance === 0) {
+      if (suamiBalance >= parsedAmount) {
+        newBalance = suamiBalance - parsedAmount;
+        await sumberDocRef.update({ suami: newBalance });
+      } else {
+        return res.status(400).json({ message: 'Saldo tidak mencukupi. Not enough balance in suami to deduct.' });
+      }
+    }
+
     res.status(201).json({
       id: docRef.id,
       ...newPengeluaran,
+      newBalance: newBalance,
     });
+
   } catch (error) {
-    res.status(500).send('Error creating pengeluaran: ' + error);
+    console.error('Error creating pengeluaran:', error);
+    res.status(500).json({ message: 'Error creating pengeluaran: ' + error.message });
   }
 });
+
+
+
+
 
 
 
@@ -458,13 +493,13 @@ app.get('/pengeluaran_list_istri', authenticateJWT, async (req, res) => {
     const userId = req.user.userId;  // Get userId from JWT token
 
     // Step 1: Fetch the relevant data_pemasukan document where 'suami == 0'
-    const pemasukanSnapshot = await db.collection('data_pengeluaran')
+    const pemasukanSnapshot = await db.collection('data_pemasukan')
       .where('suami', '==', null)
       .where('userId', '==', userId)
       .get();
 
     if (pemasukanSnapshot.empty) {
-      return res.status(404).send('No pemasukan data found for suami == 0');
+      return res.status(404).send('No pemasukan data found for istri == 0');
     }
 
     // Assuming you only expect one pemasukan document with suami == 0
@@ -490,7 +525,7 @@ app.get('/pengeluaran_list_suami', authenticateJWT, async (req, res) => {
     const userId = req.user.userId;  // Get userId from JWT token
 
     // Step 1: Fetch the relevant data_pemasukan document where 'suami == 0'
-    const pemasukanSnapshot = await db.collection('data_pengeluaran')
+    const pemasukanSnapshot = await db.collection('data_pemasukan')
       .where('istri', '==', null)
       .where('userId', '==', userId)
       .get();
@@ -517,7 +552,7 @@ app.get('/pengeluaran_list_suami', authenticateJWT, async (req, res) => {
   }
 });
 
-app.get('/pengeluaran_list_semua', authenticateJWT, async (req, res) => {
+app.get('/transaksi_list_semua', authenticateJWT, async (req, res) => {
   try {
     const userId = req.user.userId;  // Get userId from JWT token
 
@@ -532,6 +567,7 @@ app.get('/pengeluaran_list_semua', authenticateJWT, async (req, res) => {
     }
 
     const pemasukanIstriId = pemasukanIstriSnapshot.docs[0].id;  // ID from data_pemasukan for istri
+    const pemasukanIstriList = pemasukanIstriSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // Step 2: Fetch the relevant data_pemasukan document for suami where 'istri == null'
     const pemasukanSuamiSnapshot = await db.collection('data_pemasukan')
@@ -544,6 +580,7 @@ app.get('/pengeluaran_list_semua', authenticateJWT, async (req, res) => {
     }
 
     const pemasukanSuamiId = pemasukanSuamiSnapshot.docs[0].id;  // ID from data_pemasukan for suami
+    const pemasukanSuamiList = pemasukanSuamiSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // Step 3: Fetch pengeluaran data for Istri
     const pengeluaranIstriSnapshot = await db.collection('data_pengeluaran')
@@ -561,16 +598,31 @@ app.get('/pengeluaran_list_semua', authenticateJWT, async (req, res) => {
 
     const pengeluaranSuamiList = pengeluaranSuamiSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // Step 5: Combine the results
-    const combinedPengeluaranList = [...pengeluaranIstriList, ...pengeluaranSuamiList];
+    // Step 5: Combine the results into a single array
+    const combinedList = [
+      ...pemasukanIstriList,
+      ...pemasukanSuamiList,
+      ...pengeluaranIstriList,
+      ...pengeluaranSuamiList,
+    ];
 
-    // Return the combined list
-    res.status(200).json(combinedPengeluaranList);
+    // Step 6: Sort the combined list by createdAt (timestamp) in descending order
+    const sortedCombinedList = combinedList.sort((a, b) => {
+      const dateA = a.createdAt ? a.createdAt.toDate() : new Date(0);  // Convert to Date object, default to epoch if missing
+      const dateB = b.createdAt ? b.createdAt.toDate() : new Date(0);  // Convert to Date object, default to epoch if missing
+    
+      return dateB - dateA;  // Sort in descending order (newest first)
+    });
+
+    // Return the sorted combined list
+    res.status(200).json(sortedCombinedList);
     
   } catch (error) {
-    res.status(500).send('Error getting pengeluaran: ' + error);
+    res.status(500).send('Error getting transaksi list: ' + error);
   }
 });
+
+
 
 
 
@@ -758,6 +810,6 @@ app.get('/rekap_pemasukan_list', authenticateJWT, async (req, res) => {
 
 // Start the server
 const PORT = process.env.PORT || 3090;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
