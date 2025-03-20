@@ -2,22 +2,18 @@
     "version": 2,
     "builds": [
       {
-        "src": "express-api/app.js",  
+        "src": "app.js",  
         "use": "@vercel/node"
       }
     ],
     "env": {
-      "GOOGLE_SERVICE_ACCOUNT_KEY": "@google-service-account-key",
+      "GOOGLE_SERVICE_ACCOUNT_KEY": "@serviceAccountKey",
       "JWT_SECRET": "@jwt-secret"
     },
     "routes": [
       {
-        "src": "/docs",
-        "dest": "express-api/app.js"  
-      },
-      {
         "src": "/(.*)",
-        "dest": "express-api/app.js"  
+        "dest": "app.js"  
       }
     ]
   }

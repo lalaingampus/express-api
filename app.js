@@ -8,8 +8,19 @@ const bcrypt = require('bcryptjs');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 
-// Initialize Firebase
-const serviceAccount = require('./serviceAccountKey.json'); // Replace with your service account key path
+// Load the service account key from environment variable
+let serviceAccount;
+
+try {
+  serviceAccount = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+
+  if (!serviceAccount) {
+    throw new Error('Firebase service account key is missing or invalid');
+  }
+} catch (error) {
+  console.error('Error parsing GOOGLE_SERVICE_ACCOUNT_KEY:', error.message);
+  process.exit(1);  // Exit the process if there's an error with the service account key
+}
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
