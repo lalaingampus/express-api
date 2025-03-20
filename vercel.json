@@ -7,7 +7,7 @@
       }
     ],
     "env": {
-      "GOOGLE_SERVICE_ACCOUNT_KEY": "@serviceAccountKey",
+      "GOOGLE_SERVICE_ACCOUNT_KEY": "@google_service_account_key",
       "JWT_SECRET": "@jwt-secret"
     },
     "routes": [
