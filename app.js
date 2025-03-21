@@ -219,6 +219,154 @@ app.get('/get_data_pemasukan', authenticateJWT, async (req, res) => {
   }
 });
 
+app.get('/get_data_pemasukan/:id', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;  // Get userId from JWT token
+  const docId = req.params.id; // Get the id parameter from the request URL
+
+  try {
+    // Query Firestore to get a single pemasukan data by id and check userId
+    const docRef = db.collection('data_pemasukan').doc(docId);
+    const doc = await docRef.get();
+
+    // If the document doesn't exist or doesn't belong to the authenticated user
+    if (!doc.exists || doc.data().userId !== userId) {
+      return res.status(404).json({ message: 'Data not found or unauthorized access' });
+    }
+
+    const dataItem = doc.data();
+
+    // Determine which value to use based on suami or istri
+    let amountToDisplay = null;
+
+    // Display `istri` if `suami` is 0 and `istri` > 0, otherwise display `suami`
+    if (dataItem.suami === 0 && dataItem.istri > 0) {
+      amountToDisplay = dataItem.istri;
+    } else if (dataItem.istri === 0 && dataItem.suami > 0) {
+      amountToDisplay = dataItem.suami;
+    } else if (dataItem.suami > 0) {
+      amountToDisplay = dataItem.suami; // Default to suami if both are non-zero
+    } else if (dataItem.istri > 0) {
+      amountToDisplay = dataItem.istri; // Display istri if suami is 0
+    }
+
+    // Prepare the response
+    const response = {
+      id: doc.id,
+      selectedCategory: dataItem.selectedCategory,
+      selectedPerson: dataItem.selectedPerson,
+      suami: dataItem.suami,
+      istri: dataItem.istri,
+      total: dataItem.total,
+      keterangan: dataItem.keterangan,
+      amountToDisplay, // Include the computed amountToDisplay
+      createdAt: dataItem.createdAt, // Include createdAt
+    };
+
+    // Send the response
+    res.status(200).json(response);
+
+  } catch (error) {
+    res.status(500).send('Error fetching pemasukan data: ' + error);
+  }
+});
+
+app.get('/get_data_pengeluaran/:id', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;  // Get userId from JWT token
+  const docId = req.params.id; // Get the id parameter from the request URL
+
+  try {
+    // Query Firestore to get the data_pengeluaran document by id
+    const docRef = db.collection('data_pengeluaran').doc(docId);
+    const doc = await docRef.get();
+
+    // If the document doesn't exist or doesn't belong to the authenticated user
+    if (!doc.exists || doc.data().userId !== userId) {
+      return res.status(404).json({ message: 'Data not found or unauthorized access' });
+    }
+
+    const dataItem = doc.data();
+
+    // Fetch the corresponding data_pemasukan document using selectedSumber
+    const pemasukanRef = db.collection('data_pemasukan').doc(dataItem.selectedSumber);
+    const pemasukanDoc = await pemasukanRef.get();
+
+    // If the pemasukan document does not exist, set selectedCategory to 'Unknown'
+    const selectedCategory = pemasukanDoc.exists ? pemasukanDoc.data().selectedCategory : 'Unknown Category';
+
+    // Prepare the response, including selectedCategory from data_pemasukan
+    const response = {
+      id: doc.id,
+      selectedSumber: dataItem.selectedSumber,
+      selectedCategory: selectedCategory,  // From data_pemasukan
+      amount: dataItem.amount,
+      keterangan: dataItem.keterangan,
+      createdAt: dataItem.createdAt,  // Include createdAt
+    };
+
+    // Send the response
+    res.status(200).json(response);
+
+  } catch (error) {
+    // Handle any errors and send a response
+    res.status(500).send('Error fetching pemasukan data: ' + error);
+  }
+});
+
+
+app.get('/get_data_pemasukan/:id', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;  // Get userId from JWT token
+  const docId = req.params.id; // Get the id parameter from the request URL
+
+  try {
+    // Query Firestore to get a single pemasukan data by id and check userId
+    const docRef = db.collection('data_pemasukan').doc(docId);
+    const doc = await docRef.get();
+
+    // If the document doesn't exist or doesn't belong to the authenticated user
+    if (!doc.exists || doc.data().userId !== userId) {
+      return res.status(404).json({ message: 'Data not found or unauthorized access' });
+    }
+
+    const dataItem = doc.data();
+
+    // Determine which value to use based on suami or istri
+    let amountToDisplay = null;
+
+    // Display `istri` if `suami` is 0 and `istri` > 0, otherwise display `suami`
+    if (dataItem.suami === 0 && dataItem.istri > 0) {
+      amountToDisplay = dataItem.istri;
+    } else if (dataItem.istri === 0 && dataItem.suami > 0) {
+      amountToDisplay = dataItem.suami;
+    } else if (dataItem.suami > 0) {
+      amountToDisplay = dataItem.suami; // Default to suami if both are non-zero
+    } else if (dataItem.istri > 0) {
+      amountToDisplay = dataItem.istri; // Display istri if suami is 0
+    }
+
+    // Prepare the response
+    const response = {
+      id: doc.id,
+      selectedCategory: dataItem.selectedCategory,
+      selectedPerson: dataItem.selectedPerson,
+      suami: dataItem.suami,
+      istri: dataItem.istri,
+      total: dataItem.total,
+      keterangan: dataItem.keterangan,
+      amountToDisplay, // Include the computed amountToDisplay
+      createdAt: dataItem.createdAt, // Include createdAt
+    };
+
+    // Send the response
+    res.status(200).json(response);
+
+  } catch (error) {
+    res.status(500).send('Error fetching pemasukan data: ' + error);
+  }
+});
+
+
+
+
 
 
 
