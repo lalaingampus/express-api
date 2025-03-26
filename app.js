@@ -120,6 +120,46 @@ app.post('/login', async (req, res) => {
   });
 });
 
+app.post('/register', async (req, res) => {
+  const { username, email, password } = req.body;
+
+  try {
+    // Check if username already exists in Firestore
+    const snapshot = await db.collection('users').where('username', '==', username).get();
+    if (!snapshot.empty) {
+      return res.status(400).send('Username already exists');
+    }
+
+    // Hash the password before saving to Firestore
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create a new user document in Firestore
+    const userRef = await db.collection('users').add({
+      username,
+      email,
+      password: hashedPassword,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Generate JWT token with user information
+    const token = jwt.sign(
+      { 
+        userId: userRef.id, 
+        username: username,
+        createdAt: new Date().toISOString() 
+      },
+      JWT_SECRET,
+      { expiresIn: '5h' }
+    );
+
+    // Send the token as the response
+    res.status(201).json({ token });
+  } catch (error) {
+    console.error('Error registering user:', error);
+    res.status(500).send('Internal server error');
+  }
+});
+
 
 app.get('/users', authenticateJWT, async (req, res) => {
   try {
@@ -372,69 +412,85 @@ app.get('/get_data_pemasukan/:id', authenticateJWT, async (req, res) => {
 
 app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
   const { selectedCategory, amount, selectedSumber, keterangan } = req.body;
-  const userId = req.user.userId;  // Get userId from JWT token
-
+  const userId = req.user.userId; // Get userId from JWT token
   const parsedAmount = Number(amount);
 
-  if (isNaN(parsedAmount)) {
-    return res.status(400).json({ message: 'Invalid amount. Please provide a valid number.' });
+  // Validasi amount
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ message: 'Invalid amount. Please provide a valid number greater than zero.' });
   }
+
+  let createdDocRef = null; // Store the document reference for possible deletion
 
   try {
-    const newPengeluaran = {
-      selectedCategory,
-      selectedSumber,
-      amount: parsedAmount,
-      keterangan,
-      userId,
-      createdAt: new Date(),
-    };
-
-    const docRef = await db.collection('data_pengeluaran').add(newPengeluaran);
-
-    const sumberDocRef = db.collection('data_pemasukan').doc(selectedSumber);
-    const sumberDoc = await sumberDocRef.get();
-
-    if (!sumberDoc.exists) {
-      return res.status(404).json({ message: 'Sumber not found. Invalid selectedSumber ID.' });
-    }
-
-    const sumberData = sumberDoc.data();
-    const suamiBalance = sumberData.suami || 0;
-    const istriBalance = sumberData.istri || 0;
-
-    if (suamiBalance === 0 && istriBalance === 0) {
-      return res.status(400).json({ message: 'Saldo tidak mencukupi. Both suami and istri have no balance.' });
-    }
-
-    let newBalance;
-    if (suamiBalance === 0) {
-      if (istriBalance >= parsedAmount) {
-        newBalance = istriBalance - parsedAmount;
-        await sumberDocRef.update({ istri: newBalance });
-      } else {
-        return res.status(400).json({ message: 'Saldo tidak mencukupi. Not enough balance in istri to deduct.' });
+      // Get the sumber data
+      const sumberDocRef = db.collection('data_pemasukan').doc(selectedSumber);
+      const sumberDoc = await sumberDocRef.get();
+      
+      // If sumber does not exist or does not have valid data
+      if (!sumberDoc.exists) {
+          return res.status(400).json({ message: 'Selected sumber not found in the database.' });
       }
-    } else if (istriBalance === 0) {
-      if (suamiBalance >= parsedAmount) {
-        newBalance = suamiBalance - parsedAmount;
-        await sumberDocRef.update({ suami: newBalance });
-      } else {
-        return res.status(400).json({ message: 'Saldo tidak mencukupi. Not enough balance in suami to deduct.' });
-      }
-    }
 
-    res.status(201).json({
-      id: docRef.id,
-      ...newPengeluaran,
-      newBalance: newBalance,
-    });
+      const sumberData = sumberDoc.data();
+      const suamiBalance = sumberData.suami || 0;
+      const istriBalance = sumberData.istri || 0;
+
+      // Validation for balance sufficiency
+      let balanceIsValid = false;
+      let newBalance;
+
+      if (suamiBalance > 0 && suamiBalance >= parsedAmount) {
+          balanceIsValid = true;
+          newBalance = suamiBalance - parsedAmount;
+      } else if (istriBalance > 0 && istriBalance >= parsedAmount) {
+          balanceIsValid = true;
+          newBalance = istriBalance - parsedAmount;
+      }
+
+      if (!balanceIsValid) {
+          return res.status(400).json({ message: 'Insufficient balance in either suami or istri account.' });
+      }
+
+      // Update the sumber document first
+      await sumberDocRef.update({ 
+          suami: suamiBalance > 0 ? newBalance : suamiBalance,
+          istri: istriBalance > 0 ? newBalance : istriBalance,
+      });
+
+      // After successful source balance update, prepare the data to be stored
+      const newPengeluaran = {
+          selectedCategory,
+          selectedSumber,
+          amount: parsedAmount,
+          keterangan,
+          userId,
+          createdAt: new Date(),
+      };
+
+      // Add new pengeluaran data to Firebase
+      const docRef = await db.collection('data_pengeluaran').add(newPengeluaran);
+      createdDocRef = docRef; // Store the reference to delete it in case of error later
+
+      res.status(201).json({
+          id: docRef.id,
+          ...newPengeluaran,
+          newBalance: newBalance,
+      });
 
   } catch (error) {
-    console.error('Error creating pengeluaran:', error);
-    res.status(500).json({ message: 'Error creating pengeluaran: ' + error.message });
+      console.error('Error creating pengeluaran:', error);
+
+      // If any error occurs and a document was created earlier, delete it
+      if (createdDocRef) {
+          await createdDocRef.delete();
+      }
+
+      res.status(500).json({ message: 'Error creating pengeluaran: ' + error.message });
   }
 });
+
+
 
 
 
