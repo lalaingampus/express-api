@@ -120,6 +120,216 @@ app.post('/login', async (req, res) => {
   });
 });
 
+// Endpoint to delete a user by ID
+// Endpoint to delete data_pemasukan by ID
+app.delete('/data_pemasukan/:id', authenticateJWT, async (req, res) => {
+  const pemasukanId = req.params.id;  // Get the pemasukan ID from the URL parameter
+
+  try {
+    // Check if the document exists in the 'data_pemasukan' collection
+    const pemasukanDoc = await db.collection('data_pemasukan').doc(pemasukanId).get();
+    if (!pemasukanDoc.exists) {
+      return res.status(404).send('Data pemasukan not found');
+    }
+
+    // Delete the document from the 'data_pemasukan' collection
+    await db.collection('data_pemasukan').doc(pemasukanId).delete();
+
+    // Respond with a success message
+    res.status(200).send('Data pemasukan deleted successfully');
+  } catch (error) {
+    console.error('Error deleting data pemasukan:', error);
+    res.status(500).send('An error occurred while deleting data pemasukan');
+  }
+});
+
+
+
+app.put('/data_pemasukan/:id', authenticateJWT, async (req, res) => {
+  const pemasukanId = req.params.id;  // Get the pemasukan ID from the URL parameter
+  const updatedData = req.body;  // Get the new data from the request body
+
+  try {
+    // Check if the document exists in the 'data_pemasukan' collection
+    const pemasukanDoc = await db.collection('data_pemasukan').doc(pemasukanId).get();
+    if (!pemasukanDoc.exists) {
+      return res.status(404).send('Data pemasukan not found');
+    }
+
+    // Get the current data from the document
+    const currentData = pemasukanDoc.data();
+
+    // Initialize the new fields for suami and istri
+    const newSuami = currentData.suami + (updatedData.suami || 0);
+    const newIstri = currentData.istri + (updatedData.istri || 0);
+
+    // Prepare the updated data with the current date
+    const newData = {
+      ...currentData,
+      suami: newSuami,
+      istri: newIstri,
+      dateUpdated: new Date().toISOString(), // Automatically set current date
+    };
+
+    // Update the document in the 'data_pemasukan' collection with the new data
+    await db.collection('data_pemasukan').doc(pemasukanId).update(newData);
+
+    // Respond with the updated data including the current date
+    res.status(200).json({
+      message: 'Data pemasukan updated successfully',
+      updatedData: newData,
+    });
+  } catch (error) {
+    console.error('Error updating data pemasukan:', error);
+    res.status(500).send('An error occurred while updating data pemasukan');
+  }
+});
+
+
+
+
+app.delete('/data_pengeluaran/:id', authenticateJWT, async (req, res) => {
+  const pengeluaranId = req.params.id;  // Get the pengeluaran ID from the URL parameter
+
+  
+  try {
+    // Check if the document exists in the 'data_pengeluaran' collection
+    const pengeluaranDoc = await db.collection('data_pengeluaran').doc(pengeluaranId).get();
+    if (!pengeluaranDoc.exists) {
+      console.log(`Data pengeluaran with ID ${pengeluaranId} not found`);
+      return res.status(404).send('Data pengeluaran not found');
+    }
+
+
+    // Retrieve the associated pemasukan data (use selectedSumber from data_pengeluaran)
+    const selectedSumber = pengeluaranDoc.data().selectedSumber;  // This is the ID from data_pemasukan
+    console.log('This is the selectedSumber data: ', selectedSumber);
+
+    // Get the corresponding data_pemasukan document using the selectedSumber
+    const pemasukanDoc = await db.collection('data_pemasukan').doc(selectedSumber).get();
+    console.log('ini data data pemasukan', pemasukanDoc)
+    if (!pemasukanDoc.exists) {
+      console.log(`Data pemasukan with ID ${selectedSumber} not found`);
+      return res.status(404).send('Data pemasukan not found');
+    }
+
+    // Retrieve the data from data_pemasukan
+    const pemasukanData = pemasukanDoc.data();
+
+    // Get the amount from data_pengeluaran
+    const amount = pengeluaranDoc.data().amount;
+
+    let updatedAmount = null;
+
+    // If 'suami' is valid, add the amount back to 'suami' in data_pemasukan
+    if (pemasukanData.suami !== null && pemasukanData.suami !== 0) {
+      updatedAmount = pemasukanData.suami + amount;
+      // Update the 'suami' field in the data_pemasukan document
+      await db.collection('data_pemasukan').doc(selectedSumber).update({
+        suami: updatedAmount
+      });
+      console.log(`Amount added to suami: ${updatedAmount}`);
+    } 
+    // If 'istri' is valid, add the amount back to 'istri' in data_pemasukan
+    else if (pemasukanData.istri !== null && pemasukanData.istri !== 0) {
+      updatedAmount = pemasukanData.istri + amount;
+      // Update the 'istri' field in the data_pemasukan document
+      await db.collection('data_pemasukan').doc(selectedSumber).update({
+        istri: updatedAmount
+      });
+      console.log(`Amount added to istri: ${updatedAmount}`);
+    } else {
+      return res.status(400).send('Neither suami nor istri has a valid amount to update');
+    }
+
+    // Now, delete the 'data_pengeluaran' document
+    await db.collection('data_pengeluaran').doc(pengeluaranId).delete();
+
+    // Respond with a success message
+    res.status(200).send('Data pengeluaran deleted successfully, and amount returned to selectedSumber');
+  } catch (error) {
+    console.error('Error deleting data pengeluaran:', error);
+    res.status(500).send('An error occurred while deleting data pengeluaran');
+  }
+});
+
+
+app.put('/data_pengeluaran/:id', authenticateJWT, async (req, res) => {
+  const pengeluaranId = req.params.id;  // Get the pengeluaran ID from the URL parameter
+  const updatedData = req.body;  // Get the updated data from the request body
+
+  try {
+    // Check if the document exists in the 'data_pengeluaran' collection
+    const pengeluaranDoc = await db.collection('data_pengeluaran').doc(pengeluaranId).get();
+    if (!pengeluaranDoc.exists) {
+      console.log(`Data pengeluaran with ID ${pengeluaranId} not found`);
+      return res.status(404).send('Data pengeluaran not found');
+    }
+
+    // Retrieve the associated pemasukan data (use selectedSumber from data_pengeluaran)
+    const selectedSumber = pengeluaranDoc.data().selectedSumber;  // Retrieve selectedSumber (which is the id in data_pemasukan)
+    
+    // Get the data_pemasukan document using the selectedSumber
+    const pemasukanDoc = await db.collection('data_pemasukan').doc(selectedSumber).get(); 
+    
+    
+    if (!pemasukanDoc.exists) {
+      console.log(`Data pemasukan with ID ${selectedSumber} not found`);
+      return res.status(404).send('Data pemasukan not found');
+    }
+
+    // Get selectedSumber from pemasukanDoc
+    const pemasukanData = pemasukanDoc.data();
+
+    // Get the old amount from data_pengeluaran to calculate the difference
+    const oldAmount = pengeluaranDoc.data().amount;
+
+    // Calculate the difference between the old amount and the updated amount
+    const newAmount = updatedData.amount || oldAmount; // if updatedData.amount is provided, use it, else use the old amount
+
+    let updatedAmount = null;
+
+    // If 'suami' is valid, adjust the 'suami' field in the data_pemasukan document
+    if (pemasukanData.suami !== null && pemasukanData.suami !== 0) {
+      updatedAmount = pemasukanData.suami - oldAmount + newAmount;
+      // Update 'suami' field in the data_pemasukan document
+      await db.collection('data_pemasukan').doc(selectedSumber).update({
+        suami: updatedAmount
+      });
+      console.log(`Updated amount in suami: ${updatedAmount}`);
+    } 
+    // If 'istri' is valid, adjust the 'istri' field in the data_pemasukan document
+    else if (pemasukanData.istri !== null && pemasukanData.istri !== 0) {
+      updatedAmount = pemasukanData.istri - oldAmount + newAmount;
+      // Update 'istri' field in the data_pemasukan document
+      await db.collection('data_pemasukan').doc(selectedSumber).update({
+        istri: updatedAmount
+      });
+      console.log(`Updated amount in istri: ${updatedAmount}`);
+    } else {
+      return res.status(400).send('Neither suami nor istri has a valid amount to update');
+    }
+
+    // Now, update the 'data_pengeluaran' document with the new data
+    const updatedDataWithDate = {
+      ...updatedData,
+      dateUpdated: new Date().toISOString(), // Automatically add the current date
+    };
+
+    await db.collection('data_pengeluaran').doc(pengeluaranId).update(updatedDataWithDate);
+
+    // Respond with the updated data and the current date
+    res.status(200).json({
+      message: 'Data pengeluaran updated successfully, and amount adjusted in data_pemasukan',
+      updatedData: updatedDataWithDate,
+    });
+  } catch (error) {
+    console.error('Error updating data pengeluaran:', error);
+    res.status(500).send('An error occurred while updating data pengeluaran');
+  }
+});
+
+
 app.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -318,7 +528,7 @@ app.get('/get_data_pengeluaran/:id', authenticateJWT, async (req, res) => {
     // Query Firestore to get the data_pengeluaran document by id
     const docRef = db.collection('data_pengeluaran').doc(docId);
     const doc = await docRef.get();
-
+    
     // If the document doesn't exist or doesn't belong to the authenticated user
     if (!doc.exists || doc.data().userId !== userId) {
       return res.status(404).json({ message: 'Data not found or unauthorized access' });
@@ -405,11 +615,6 @@ app.get('/get_data_pemasukan/:id', authenticateJWT, async (req, res) => {
 });
 
 
-
-
-
-
-
 app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
   const { selectedCategory, amount, selectedSumber, keterangan } = req.body;
   const userId = req.user.userId; // Get userId from JWT token
@@ -489,13 +694,6 @@ app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
       res.status(500).json({ message: 'Error creating pengeluaran: ' + error.message });
   }
 });
-
-
-
-
-
-
-
 
 
 app.get('/list_data_hutang', authenticateJWT, async (req, res) => {
@@ -836,9 +1034,6 @@ app.get('/transaksi_list_semua', authenticateJWT, async (req, res) => {
     res.status(500).send('Error getting transaksi list: ' + error);
   }
 });
-
-
-
 
 
 app.get('/pengeluaran_list', authenticateJWT, async (req, res) => {
