@@ -159,9 +159,9 @@ app.put('/data_pemasukan/:id', authenticateJWT, async (req, res) => {
     // Get the current data from the document
     const currentData = pemasukanDoc.data();
 
-    // Initialize the new fields for suami and istri
-    const newSuami = currentData.suami + (updatedData.suami || 0);
-    const newIstri = currentData.istri + (updatedData.istri || 0);
+    const newSuami = updatedData.suami !== undefined ? updatedData.suami : currentData.suami;
+    const newIstri = updatedData.istri !== undefined ? updatedData.istri : currentData.istri;
+
 
     // Prepare the updated data with the current date
     const newData = {
@@ -287,11 +287,15 @@ app.put('/data_pengeluaran/:id', authenticateJWT, async (req, res) => {
     // Calculate the difference between the old amount and the updated amount
     const newAmount = updatedData.amount || oldAmount; // if updatedData.amount is provided, use it, else use the old amount
 
+    console.log('Old Amount:', oldAmount);
+    console.log('New Amount:', newAmount);
+
+
     let updatedAmount = null;
 
     // If 'suami' is valid, adjust the 'suami' field in the data_pemasukan document
     if (pemasukanData.suami !== null && pemasukanData.suami !== 0) {
-      updatedAmount = pemasukanData.suami - oldAmount + newAmount;
+      updatedAmount = pemasukanData.suami - oldAmount;
       // Update 'suami' field in the data_pemasukan document
       await db.collection('data_pemasukan').doc(selectedSumber).update({
         suami: updatedAmount
@@ -300,7 +304,7 @@ app.put('/data_pengeluaran/:id', authenticateJWT, async (req, res) => {
     } 
     // If 'istri' is valid, adjust the 'istri' field in the data_pemasukan document
     else if (pemasukanData.istri !== null && pemasukanData.istri !== 0) {
-      updatedAmount = pemasukanData.istri - oldAmount + newAmount;
+      updatedAmount = pemasukanData.istri - oldAmount;
       // Update 'istri' field in the data_pemasukan document
       await db.collection('data_pemasukan').doc(selectedSumber).update({
         istri: updatedAmount
@@ -622,78 +626,89 @@ app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
 
   // Validasi amount
   if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({ message: 'Invalid amount. Please provide a valid number greater than zero.' });
+    return res.status(400).json({ message: 'Invalid amount. Please provide a valid number greater than zero.' });
   }
 
   let createdDocRef = null; // Store the document reference for possible deletion
 
   try {
-      // Get the sumber data
-      const sumberDocRef = db.collection('data_pemasukan').doc(selectedSumber);
-      const sumberDoc = await sumberDocRef.get();
-      
-      // If sumber does not exist or does not have valid data
-      if (!sumberDoc.exists) {
-          return res.status(400).json({ message: 'Selected sumber not found in the database.' });
-      }
+    // Get the sumber data
+    const sumberDocRef = db.collection('data_pemasukan').doc(selectedSumber);
+    const sumberDoc = await sumberDocRef.get();
 
-      const sumberData = sumberDoc.data();
-      const suamiBalance = sumberData.suami || 0;
-      const istriBalance = sumberData.istri || 0;
+    // If sumber does not exist or does not have valid data
+    if (!sumberDoc.exists) {
+      return res.status(400).json({ message: 'Selected sumber not found in the database.' });
+    }
 
-      // Validation for balance sufficiency
-      let balanceIsValid = false;
-      let newBalance;
+    const sumberData = sumberDoc.data();
+    const suamiBalance = sumberData.suami || 0;
+    const istriBalance = sumberData.istri || 0;
 
-      if (suamiBalance > 0 && suamiBalance >= parsedAmount) {
-          balanceIsValid = true;
-          newBalance = suamiBalance - parsedAmount;
-      } else if (istriBalance > 0 && istriBalance >= parsedAmount) {
-          balanceIsValid = true;
-          newBalance = istriBalance - parsedAmount;
-      }
+    // Validation for balance sufficiency
+    let balanceIsValid = false;
+    let newSuamiBalance = suamiBalance;
+    let newIstriBalance = istriBalance;
 
-      if (!balanceIsValid) {
-          return res.status(400).json({ message: 'Insufficient balance in either suami or istri account.' });
-      }
+    // Check if suami balance is sufficient
+    if (suamiBalance > 0 && suamiBalance >= parsedAmount) {
+      balanceIsValid = true;
+      newSuamiBalance = suamiBalance - parsedAmount;
+    }
+    // If not, check if istri balance is sufficient
+    else if (istriBalance > 0 && istriBalance >= parsedAmount) {
+      balanceIsValid = true;
+      newIstriBalance = istriBalance - parsedAmount;
+    }
 
-      // Update the sumber document first
-      await sumberDocRef.update({ 
-          suami: suamiBalance > 0 ? newBalance : suamiBalance,
-          istri: istriBalance > 0 ? newBalance : istriBalance,
-      });
+    if (!balanceIsValid) {
+      return res.status(400).json({ message: 'Insufficient balance in either suami or istri account.' });
+    }
 
-      // After successful source balance update, prepare the data to be stored
-      const newPengeluaran = {
-          selectedCategory,
-          selectedSumber,
-          amount: parsedAmount,
-          keterangan,
-          userId,
-          createdAt: new Date(),
-      };
+    // Update the sumber document first
+    const updateData = {};
+    if (suamiBalance >= parsedAmount) {
+      updateData.suami = newSuamiBalance; // Only update suami if its balance was used
+    } 
+    if (istriBalance >= parsedAmount) {
+      updateData.istri = newIstriBalance; // Only update istri if its balance was used
+    }
 
-      // Add new pengeluaran data to Firebase
-      const docRef = await db.collection('data_pengeluaran').add(newPengeluaran);
-      createdDocRef = docRef; // Store the reference to delete it in case of error later
+    await sumberDocRef.update(updateData);
 
-      res.status(201).json({
-          id: docRef.id,
-          ...newPengeluaran,
-          newBalance: newBalance,
-      });
+    // After successful source balance update, prepare the data to be stored
+    const newPengeluaran = {
+      selectedCategory,
+      selectedSumber,
+      amount: parsedAmount,
+      keterangan,
+      userId,
+      createdAt: new Date(),
+    };
+
+    // Add new pengeluaran data to Firebase
+    const docRef = await db.collection('data_pengeluaran').add(newPengeluaran);
+    createdDocRef = docRef; // Store the reference to delete it in case of error later
+
+    res.status(201).json({
+      id: docRef.id,
+      ...newPengeluaran,
+      newSuamiBalance, // Send the updated balance
+      newIstriBalance, // Send the updated balance
+    });
 
   } catch (error) {
-      console.error('Error creating pengeluaran:', error);
+    console.error('Error creating pengeluaran:', error);
 
-      // If any error occurs and a document was created earlier, delete it
-      if (createdDocRef) {
-          await createdDocRef.delete();
-      }
+    // If any error occurs and a document was created earlier, delete it
+    if (createdDocRef) {
+      await createdDocRef.delete();
+    }
 
-      res.status(500).json({ message: 'Error creating pengeluaran: ' + error.message });
+    res.status(500).json({ message: 'Error creating pengeluaran: ' + error.message });
   }
 });
+
 
 
 app.get('/list_data_hutang', authenticateJWT, async (req, res) => {
