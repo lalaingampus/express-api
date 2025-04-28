@@ -718,15 +718,19 @@ app.get('/list_data_hutang', authenticateJWT, async (req, res) => {
     // Fetch expense data with both conditions (userId and selectedCategory)
     const snapshot = await db.collection('data_pengeluaran')
       .where('userId', '==', userId)
-      .where('selectedCategory', '==', 'Hutang')  // Two conditions in one query
+      .where('selectedCategory', '==', 'Debt')  // Two conditions in one query
       .get();
     
+
     const pengeluaranList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
     res.status(200).json(pengeluaranList);
   } catch (error) {
+    
     res.status(500).send('Error getting pengeluaran: ' + error);
   }
 });
+
 
 app.post('/calculate_hutang', authenticateJWT, async (req, res) => {
   try {
