@@ -763,6 +763,75 @@ app.post('/data_hutang', authenticateJWT, async (req, res) => {
   }
 });
 
+app.put('/data_hutang/:id', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;
+  const { id } = req.params;
+  const { debtToPay, keterangan } = req.body;
+
+  // Validasi input
+  if (!debtToPay || !keterangan) {
+    return res.status(400).json({ message: 'debtToPay dan keterangan wajib diisi.' });
+  }
+
+  try {
+    const docRef = db.collection('data_hutang').doc(id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: 'Data hutang tidak ditemukan.' });
+    }
+
+    // Cek apakah user yang melakukan update adalah pemilik data
+    if (doc.data().userId !== userId) {
+      return res.status(403).json({ message: 'Akses ditolak. Anda bukan pemilik data ini.' });
+    }
+
+    // Update data hutang
+    await docRef.update({
+      debtToPay,
+      keterangan,
+      updatedAt: new Date().toISOString(),
+    });
+
+    res.status(200).json({ message: 'Data hutang berhasil diperbarui.' });
+  } catch (error) {
+    console.error('Error saat update data hutang:', error);
+    res.status(500).json({ message: 'Gagal memperbarui data hutang.' });
+  }
+});
+
+
+app.delete('/data_hutang/:id', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: 'ID hutang tidak ditemukan.' });
+  }
+
+  try {
+    const docRef = db.collection('data_hutang').doc(id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: 'Data hutang tidak ditemukan.' });
+    }
+
+    // Cek apakah user yang menghapus adalah pemilik data
+    if (doc.data().userId !== userId) {
+      return res.status(403).json({ message: 'Akses ditolak. Anda bukan pemilik data ini.' });
+    }
+
+    await docRef.delete();
+
+    res.status(200).json({ message: 'Data hutang berhasil dihapus.' });
+  } catch (error) {
+    console.error('Error saat menghapus data hutang:', error);
+    res.status(500).json({ message: 'Gagal menghapus data hutang.' });
+  }
+});
+
+
 app.get('/data_hutang', authenticateJWT, async (req, res) => {
   const userId = req.user.userId;
 
