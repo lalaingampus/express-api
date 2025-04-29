@@ -619,116 +619,6 @@ app.get('/get_data_pemasukan/:id', authenticateJWT, async (req, res) => {
 });
 
 
-app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
-  const { selectedCategory, amount, selectedSumber, keterangan, selectedDebt } = req.body;
-  const userId = req.user.userId;
-  const parsedAmount = Number(amount);
-
-  if (isNaN(parsedAmount) || parsedAmount <= 0) {
-    return res.status(400).json({ message: 'Invalid amount. Please provide a valid number greater than zero.' });
-  }
-
-  let createdDocRef = null;
-
-  try {
-    // 1. Optional: Update hutang if selectedCategory === 'Debt'
-    if (selectedCategory === 'Debt') {
-      if (!selectedDebt) {
-        return res.status(400).json({ message: 'Debt category selected but no debt ID provided.' });
-      }
-
-      const debtDocRef = db.collection('data_hutang').doc(selectedDebt);
-      const debtDoc = await debtDocRef.get();
-
-      if (!debtDoc.exists) {
-        return res.status(404).json({ message: 'Selected debt not found.' });
-      }
-
-      const debtData = debtDoc.data();
-      const currentDebt = debtData.debtToPay || 0;
-
-      if (parsedAmount > currentDebt) {
-        return res.status(400).json({ message: 'Amount exceeds remaining debt.' });
-      }
-
-      const newDebtValue = currentDebt - parsedAmount;
-
-      await debtDocRef.update({
-        debtToPay: newDebtValue,
-        status: newDebtValue === 0 ? 'Lunas' : 'Belum Lunas',
-        updatedAt: new Date()
-      });
-    }
-
-    // 2. Get sumber data
-    const sumberDocRef = db.collection('data_pemasukan').doc(selectedSumber);
-    const sumberDoc = await sumberDocRef.get();
-
-    if (!sumberDoc.exists) {
-      return res.status(400).json({ message: 'Selected sumber not found in the database.' });
-    }
-
-    const sumberData = sumberDoc.data();
-    const suamiBalance = sumberData.suami || 0;
-    const istriBalance = sumberData.istri || 0;
-
-    let balanceIsValid = false;
-    let newSuamiBalance = suamiBalance;
-    let newIstriBalance = istriBalance;
-
-    if (suamiBalance > 0 && suamiBalance >= parsedAmount) {
-      balanceIsValid = true;
-      newSuamiBalance = suamiBalance - parsedAmount;
-    } else if (istriBalance > 0 && istriBalance >= parsedAmount) {
-      balanceIsValid = true;
-      newIstriBalance = istriBalance - parsedAmount;
-    }
-
-    if (!balanceIsValid) {
-      return res.status(400).json({ message: 'Insufficient balance in either suami or istri account.' });
-    }
-
-    const updateData = {};
-    if (suamiBalance >= parsedAmount) {
-      updateData.suami = newSuamiBalance;
-    } else if (istriBalance >= parsedAmount) {
-      updateData.istri = newIstriBalance;
-    }
-
-    await sumberDocRef.update(updateData);
-
-    const newPengeluaran = {
-      selectedCategory,
-      selectedSumber,
-      amount: parsedAmount,
-      keterangan: selectedCategory === 'Debt' ? '' : keterangan,
-      userId,
-      createdAt: new Date(),
-      ...(selectedCategory === 'Debt' && { selectedDebt }),
-    };
-
-    const docRef = await db.collection('data_pengeluaran').add(newPengeluaran);
-    createdDocRef = docRef;
-
-    res.status(201).json({
-      id: docRef.id,
-      ...newPengeluaran,
-      newSuamiBalance,
-      newIstriBalance,
-    });
-
-  } catch (error) {
-    console.error('Error creating pengeluaran:', error);
-
-    if (createdDocRef) {
-      await createdDocRef.delete();
-    }
-
-    res.status(500).json({ message: 'Error creating pengeluaran: ' + error.message });
-  }
-});
-
-
 app.post('/data_hutang', authenticateJWT, async (req, res) => {
   const userId = req.user.userId;
   const { debtToPay, keterangan } = req.body;
@@ -787,6 +677,123 @@ app.get('/data_hutang', authenticateJWT, async (req, res) => {
     res.status(500).json({ message: 'Gagal mengambil data hutang.' });
   }
 });
+
+
+app.post('/data_pengeluaran', authenticateJWT, async (req, res) => {
+  const { selectedCategory, amount, selectedSumber, keterangan, selectedDebt } = req.body;
+  const userId = req.user.userId; // Get userId from JWT token
+  const parsedAmount = Number(amount);
+
+  // Validasi amount
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    return res.status(400).json({ message: 'Invalid amount. Please provide a valid number greater than zero.' });
+  }
+
+  console.log('Received data:', {
+    selectedCategory,
+    amount,
+    selectedSumber,
+    keterangan,
+    selectedDebt,
+  });
+
+  let createdDocRef = null; // Store the document reference for possible deletion
+
+  try {
+
+    if (selectedCategory === 'Debt') {
+      console.log('Processing debt payment...');
+      const debtDocRef = db.collection('data_hutang').doc(selectedDebt);
+      const debtDoc = await debtDocRef.get();
+
+      if (!debtDoc.exists) {
+        return res.status(404).json({ message: 'Selected debt not found.' });
+      }
+      console.log('Debt document data:', debtDoc.data());
+      
+
+      console.log('ini data sementara', debtDoc)
+    }
+
+    // Get the sumber data
+    const sumberDocRef = db.collection('data_pemasukan').doc(selectedSumber);
+    const sumberDoc = await sumberDocRef.get();
+
+    // If sumber does not exist or does not have valid data
+    if (!sumberDoc.exists) {
+      return res.status(400).json({ message: 'Selected sumber not found in the database.' });
+    }
+
+    const sumberData = sumberDoc.data();
+    const suamiBalance = sumberData.suami || 0;
+    const istriBalance = sumberData.istri || 0;
+
+    // Validation for balance sufficiency
+    let balanceIsValid = false;
+    let newSuamiBalance = suamiBalance;
+    let newIstriBalance = istriBalance;
+
+    // Check if suami balance is sufficient
+    if (suamiBalance > 0 && suamiBalance >= parsedAmount) {
+      balanceIsValid = true;
+      newSuamiBalance = suamiBalance - parsedAmount;
+    }
+    // If not, check if istri balance is sufficient
+    else if (istriBalance > 0 && istriBalance >= parsedAmount) {
+      balanceIsValid = true;
+      newIstriBalance = istriBalance - parsedAmount;
+    }
+
+    if (!balanceIsValid) {
+      return res.status(400).json({ message: 'Insufficient balance in either suami or istri account.' });
+    }
+
+    // Update the sumber document first
+    const updateData = {};
+    if (suamiBalance >= parsedAmount) {
+      updateData.suami = newSuamiBalance; // Only update suami if its balance was used
+    } 
+    if (istriBalance >= parsedAmount) {
+      updateData.istri = newIstriBalance; // Only update istri if its balance was used
+    }
+
+    await sumberDocRef.update(updateData);
+
+    // After successful source balance update, prepare the data to be stored
+    const newPengeluaran = {
+      selectedCategory,
+      selectedSumber,
+      amount: parsedAmount,
+      keterangan: '',
+      userId,
+      createdAt: new Date(),
+      ...(selectedCategory === 'Debt' && { selectedDebt }),
+    };
+
+    // Add new pengeluaran data to Firebase
+    const docRef = await db.collection('data_pengeluaran').add(newPengeluaran);
+    createdDocRef = docRef; // Store the reference to delete it in case of error later
+
+    res.status(201).json({
+      id: docRef.id,
+      ...newPengeluaran,
+      newSuamiBalance, // Send the updated balance
+      newIstriBalance, // Send the updated balance
+    });
+
+  } catch (error) {
+    console.error('Error creating pengeluaran:', error);
+
+    // If any error occurs and a document was created earlier, delete it
+    if (createdDocRef) {
+      await createdDocRef.delete();
+    }
+
+    res.status(500).json({ message: 'Error creating pengeluaran: ' + error.message });
+  }
+});
+
+
 
 app.get('/list_data_hutang', authenticateJWT, async (req, res) => {
   try {
