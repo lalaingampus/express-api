@@ -387,7 +387,7 @@ app.get('/users', authenticateJWT, async (req, res) => {
 
 
 app.post('/data_pemasukan', authenticateJWT, async (req, res) => {
-  const { selectedPerson, selectedCategory, suami, istri, total, keterangan } = req.body;
+  const { selectedPerson, selectedItem, selectedCategory, suami, istri, total, keterangan } = req.body;
   const userId = req.user.userId;  // Get userId from JWT token
 
   // Convert suami to a number, or set it to null if it's not a valid number
@@ -398,6 +398,7 @@ app.post('/data_pemasukan', authenticateJWT, async (req, res) => {
   const newPemasukan = {
     selectedCategory,
     selectedPerson,
+    selectedItem,
     suami: suamiNumber,  // Store suami as a number
     istri: istriNumber,  // Store istri as a number
     total: total || null,
@@ -456,6 +457,7 @@ app.get('/get_data_pemasukan', authenticateJWT, async (req, res) => {
         id: doc.id,
         selectedCategory: dataItem.selectedCategory,
         selectedPerson: dataItem.selectedPerson,
+        selectedItem: dataItem.selectedItem,
         suami: dataItem.suami,
         istri: dataItem.istri,
         total: dataItem.total,
@@ -508,6 +510,7 @@ app.get('/get_data_pemasukan/:id', authenticateJWT, async (req, res) => {
       id: doc.id,
       selectedCategory: dataItem.selectedCategory,
       selectedPerson: dataItem.selectedPerson,
+      selectedItem: dataItem.selectedItem,
       suami: dataItem.suami,
       istri: dataItem.istri,
       total: dataItem.total,
@@ -762,6 +765,132 @@ app.post('/data_hutang', authenticateJWT, async (req, res) => {
     res.status(500).json({ message: 'Gagal menambahkan data hutang.' });
   }
 });
+
+app.post('/data_nb', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;
+  const { keterangan } = req.body;
+
+  // Validasi input
+  if (!keterangan) {
+    return res.status(400).json({ message: 'debtToPay dan keterangan wajib diisi.' });
+  }
+
+  try {
+    // Tambahkan dokumen baru ke koleksi data_hutang
+    const docRef = await db.collection('data_nb').add({
+      userId,   
+      keterangan,
+      createdAt: new Date().toISOString(),
+    });
+
+    res.status(201).json({
+      message: 'Data nb berhasil ditambahkan.',
+      id: docRef.id,
+      data: {
+        userId,
+        keterangan,
+        createdAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error menambahkan data nb:', error);
+    res.status(500).json({ message: 'Gagal menambahkan data nb.' });
+  }
+});
+
+app.put('/data_nb/:id', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;
+  const { id } = req.params;
+  const { keterangan } = req.body;
+
+  // Validasi input
+  if (!keterangan) {
+    return res.status(400).json({ message: 'debtToPay dan keterangan wajib diisi.' });
+  }
+
+  try {
+    const docRef = db.collection('data_nb').doc(id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: 'Data nb tidak ditemukan.' });
+    }
+
+    // Cek apakah user yang melakukan update adalah pemilik data
+    if (doc.data().userId !== userId) {
+      return res.status(403).json({ message: 'Akses ditolak. Anda bukan pemilik data ini.' });
+    }
+
+    // Update data hutang
+    await docRef.update({
+      keterangan,
+      updatedAt: new Date().toISOString(),
+    });
+
+    res.status(200).json({ message: 'Data nb berhasil diperbarui.' });
+  } catch (error) {
+    console.error('Error saat update data nb:', error);
+    res.status(500).json({ message: 'Gagal memperbarui data nb.' });
+  }
+});
+
+
+app.delete('/data_nb/:id', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: 'ID nb tidak ditemukan.' });
+  }
+
+  try {
+    const docRef = db.collection('data_nb').doc(id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ message: 'Data nb tidak ditemukan.' });
+    }
+
+    // Cek apakah user yang menghapus adalah pemilik data
+    if (doc.data().userId !== userId) {
+      return res.status(403).json({ message: 'Akses ditolak. Anda bukan pemilik data ini.' });
+    }
+
+    await docRef.delete();
+
+    res.status(200).json({ message: 'Data nb berhasil dihapus.' });
+  } catch (error) {
+    console.error('Error saat menghapus data nb:', error);
+    res.status(500).json({ message: 'Gagal menghapus data nb.' });
+  }
+});
+
+
+app.get('/data_nb', authenticateJWT, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const snapshot = await db.collection('data_nb')
+    .where('userId', '==', userId)
+    // .orderBy('createdAt', 'desc') // hapus sementara
+    .get();
+
+
+    const hutangList = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.status(200).json({
+      message: 'Daftar data nb berhasil diambil.',
+      data: hutangList
+    });
+  } catch (error) {
+    console.error('Error mengambil data nb:', error);
+    res.status(500).json({ message: 'Gagal mengambil data nb.' });
+  }
+});
+
 
 app.put('/data_hutang/:id', authenticateJWT, async (req, res) => {
   const userId = req.user.userId;
