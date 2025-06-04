@@ -1345,96 +1345,115 @@ app.get('/pengeluaran_list', authenticateJWT, async (req, res) => {
 
 app.post('/move_pengeluaran_to_rekap', authenticateJWT, async (req, res) => {
   try {
-    const userId = req.user.userId;  // Get userId from JWT token
+    const userId = req.user.userId;
 
-    // Fetch data from the 'data_pengeluaran' collection
     const snapshot = await db.collection('data_pengeluaran')
       .where('userId', '==', userId)
       .get();
 
-    // Initialize variables to store the aggregated data
     let totalPengeluaran = 0;
     const pengeluaranData = [];
 
-    // Loop through the data to sum the expenses
     snapshot.docs.forEach(doc => {
       const data = doc.data();
-      totalPengeluaran += data.amount;  // Sum the amount from each document
+      totalPengeluaran += data.amount;
       pengeluaranData.push({
         id: doc.id,
-        ...data,  // Add document data (without the id field)
+        ...data,
       });
     });
 
-    // Check if there is data to move
     if (pengeluaranData.length > 0) {
-      // Create a new document in 'rekap_data_pengeluaran' without removing data from 'data_pengeluaran'
-      await db.collection('rekap_data_pengeluaran').add({
+      const rekapRef = await db.collection('rekap_data_pengeluaran').add({
         userId,
-        totalPengeluaran,  // Insert total sum of expenses
-        month: new Date().getMonth() + 1,  // Example: Store the current month
-        year: new Date().getFullYear(),    // Store the current year
-        data: pengeluaranData,  // Store the original data (if needed)
+        totalPengeluaran,
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+        data: pengeluaranData,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
 
-      res.status(200).send('Data successfully copied to rekap_data_pengeluaran.');
+      res.status(200).json({
+        success: true,
+        message: 'Data successfully copied to rekap_data_pengeluaran.',
+        rekapId: rekapRef.id,
+        total: totalPengeluaran,
+        jumlahData: pengeluaranData.length,
+        dataPreview: pengeluaranData.slice(0, 3), // hanya tampilkan 3 data pertama
+      });
     } else {
-      res.status(404).send('No data found to copy.');
+      res.status(404).json({
+        success: false,
+        message: 'No pengeluaran data found for this user.',
+      });
     }
   } catch (error) {
     console.error('Error moving data:', error);
-    res.status(500).send('Error moving data: ' + error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Error moving data.',
+      error: error.message,
+    });
   }
 });
 
 
 app.post('/move_pemasukan_to_rekap', authenticateJWT, async (req, res) => {
   try {
-    const userId = req.user.userId;  // Get userId from JWT token
+    const userId = req.user.userId;
 
-    // Fetch data from the 'data_pemasukan' collection
     const snapshot = await db.collection('data_pemasukan')
       .where('userId', '==', userId)
       .get();
 
-    // Initialize variables to store the aggregated data
     let totalPemasukan = 0;
     const pemasukanData = [];
 
-    // Loop through the data to sum the expenses
     snapshot.docs.forEach(doc => {
       const data = doc.data();
-      totalPemasukan += data.amount;  // Sum the amount from each document
+      totalPemasukan += data.amount;
       pemasukanData.push({
         id: doc.id,
-        ...data,  // Add document data (without the id field)
+        ...data,
       });
     });
 
-    // Check if there is data to move
     if (pemasukanData.length > 0) {
-      // Create a new document in 'rekap_data_pengeluaran' without removing data from 'data_pengeluaran'
-      await db.collection('rekap_data_pemasukan').add({
+      const rekapRef = await db.collection('rekap_data_pemasukan').add({
         userId,
-        totalPemasukan,  // Insert total sum of expenses
-        month: new Date().getMonth() + 1,  // Example: Store the current month
-        year: new Date().getFullYear(),    // Store the current year
-        data: pemasukanData,  // Store the original data (if needed)
+        totalPemasukan,
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+        data: pemasukanData,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
 
-      res.status(200).send('Data successfully copied to rekap_data_pemasukan.');
+      res.status(200).json({
+        success: true,
+        message: 'Data successfully copied to rekap_data_pemasukan.',
+        rekapId: rekapRef.id,
+        total: totalPemasukan,
+        jumlahData: pemasukanData.length,
+        dataPreview: pemasukanData.slice(0, 3), // optional: preview 3 data pertama
+      });
     } else {
-      res.status(404).send('No data found to copy.');
+      res.status(404).json({
+        success: false,
+        message: 'No pemasukan data found for this user.',
+      });
     }
   } catch (error) {
     console.error('Error moving data:', error);
-    res.status(500).send('Error moving data: ' + error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Error moving data.',
+      error: error.message,
+    });
   }
 });
+
 
 app.get('/rekap_pengeluaran_list', authenticateJWT, async (req, res) => {
   try {
