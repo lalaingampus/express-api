@@ -8,13 +8,11 @@ module.exports = (sequelize) => {
       defaultValue: 0 
     },
 
-    // DAILY / WEEKLY / MONTHLY
     type: { 
       type: DataTypes.ENUM('daily', 'weekly', 'monthly'),
       allowNull: false,
     },
 
-    // start-end date untuk periode laporan
     startDate: { 
       type: DataTypes.DATEONLY, 
       allowNull: false 
@@ -25,7 +23,17 @@ module.exports = (sequelize) => {
       allowNull: false 
     },
 
-    // JSON untuk simpan list item transaksi
+    /* Tambahkan ini */
+    month: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+
+    year: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+
     data: { 
       type: DataTypes.JSONB, 
       allowNull: true 

@@ -2,7 +2,7 @@ const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const RekapPemasukan = sequelize.define('RekapPemasukan', {
-    totalPengeluaran: { 
+    totalPemasukan: { 
       type: DataTypes.FLOAT, 
       allowNull: false, 
       defaultValue: 0 
@@ -23,6 +23,16 @@ module.exports = (sequelize) => {
     endDate: { 
       type: DataTypes.DATEONLY, 
       allowNull: false 
+    },
+
+    month: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+
+    year: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
     },
 
     // JSON untuk simpan list item transaksi

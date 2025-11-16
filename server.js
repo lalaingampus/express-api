@@ -1,4 +1,8 @@
 require('dotenv').config();
+
+// === IMPORT CRON ===
+require('./cron.js');
+
 const app = require('./src/app');
 const { sequelize } = require('./src/models');
 
@@ -9,6 +13,7 @@ const PORT = process.env.PORT || 3090;
     console.log('🔌 Connecting to database...');
     console.log(`Host: ${process.env.DB_HOST}`);
     console.log(`User: ${process.env.DB_USERNAME}`);
+
     await sequelize.authenticate();
     console.log('✅ Database connection established.');
 
