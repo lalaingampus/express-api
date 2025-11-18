@@ -1,22 +1,32 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
-  const Hutang = sequelize.define('Hutang', {
-    debtToPay: { type: DataTypes.FLOAT, allowNull: false },
-    keterangan: { type: DataTypes.TEXT, allowNull: false },
-    status: {
-      type: DataTypes.ENUM('Belum Lunas', 'Lunas'),
-      defaultValue: 'Belum Lunas',
+  const CronLog = sequelize.define(
+    "CronLog",
+    {
+      type: {
+        type: DataTypes.ENUM("daily", "weekly", "monthly"),
+        allowNull: false,
+      },
+      status: {
+        type: DataTypes.ENUM("success", "failed"),
+        allowNull: false,
+      },
+      message: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      userId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        field: "user_id", // follow your style
+      },
     },
-    userId: { 
-      type: DataTypes.INTEGER, 
-      allowNull: false,
-      field: 'user_id',   // 🧠 tambahkan ini supaya map ke kolom 'user_id' di DB
-    },
-  }, {
-    tableName: 'data_hutang',
-    timestamps: true,
-  });
+    {
+      tableName: "cron_logs", // <-- follow convention
+      timestamps: true,       // createdAt & updatedAt
+    }
+  );
 
-  return Hutang;
+  return CronLog;
 };
