@@ -30,7 +30,7 @@ const options = {
       },
     ],
   },
-  apis: ['./src/routes/*.js'], // akan generate dari semua file route
+  apis: ['../routes/*.js'], // akan generate dari semua file route
 };
 
 const swaggerSpecs = swaggerJsdoc(options);
