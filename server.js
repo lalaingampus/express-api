@@ -1,0 +1,30 @@
+require('dotenv').config();
+
+// === IMPORT CRON ===
+require('./cron.js');
+
+const app = require('./src/app');
+const { sequelize } = require('./src/models');
+
+const PORT = process.env.PORT || 3090;
+
+(async () => {
+  try {
+    console.log('🔌 Connecting to database...');
+    console.log(`Host: ${process.env.DB_HOST}`);
+    console.log(`User: ${process.env.DB_USERNAME}`);
+
+    await sequelize.authenticate();
+    console.log('✅ Database connection established.');
+
+    await sequelize.sync({ alter: true });
+    console.log('🗄️ Database synced successfully.');
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running at http://localhost:${PORT}`);
+      console.log(`📘 Swagger docs: http://localhost:${PORT}/docs`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+  }
+})();
