@@ -1,4 +1,5 @@
 const swaggerJsdoc = require('swagger-jsdoc');
+const path = require('path');
 
 const options = {
   definition: {
@@ -20,19 +21,15 @@ const options = {
           scheme: 'bearer',
           bearerFormat: 'JWT',
           description:
-            'Masukkan token JWT kamu di sini.\n\nFormat: **Bearer &lt;token&gt;**',
+            'Masukkan token JWT kamu di sini.\n\nFormat: **Bearer <token>**',
         },
       },
     },
-    security: [
-      {
-        bearerAuth: [],
-      },
-    ],
+    security: [{ bearerAuth: [] }],
   },
-  apis: ['../routes/*.js'], // akan generate dari semua file route
+
+  // FIX PENTING
+  apis: [path.join(__dirname, '../routes/*.js')],
 };
 
-const swaggerSpecs = swaggerJsdoc(options);
-
-module.exports = swaggerSpecs;
+module.exports = swaggerJsdoc(options);
