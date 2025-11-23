@@ -1,30 +1,31 @@
-require('dotenv').config();
+require("dotenv").config();
 
 // === IMPORT CRON ===
-require('./cron.js');
+require("./cron.js");
 
-const app = require('./src/app');
-const { sequelize } = require('./src/models');
+const app = require("./src/app");
+const { sequelize } = require("./src/models");
 
-const PORT = process.env.PORT || 3090;
+// WAJIB: Railway selalu isi PORT → tidak perlu fallback
+const PORT = process.env.PORT;
 
 (async () => {
   try {
-    console.log('🔌 Connecting to database...');
+    console.log("🔌 Connecting to database...");
     console.log(`Host: ${process.env.DB_HOST}`);
     console.log(`User: ${process.env.DB_USERNAME}`);
 
     await sequelize.authenticate();
-    console.log('✅ Database connection established.');
+    console.log("✅ Database connection established.");
 
     await sequelize.sync({ alter: true });
-    console.log('🗄️ Database synced successfully.');
+    console.log("🗄️ Database synced successfully.");
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running at http://localhost:${PORT}`);
-      console.log(`📘 Swagger docs: http://localhost:${PORT}/docs`);
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📘 Swagger docs: /docs`);
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error("❌ Failed to start server:", error);
   }
 })();
