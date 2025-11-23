@@ -20,27 +20,30 @@ exports.create = async (req, res) => {
       istri,
       total,
       keterangan,
+      createdAt
     } = req.body;
 
-    // ✅ Bersihkan input numeric agar tidak kirim string kosong ke PostgreSQL
+    // ====== Numerik cleaner ======
     const suamiNumber =
       suami !== undefined && suami !== null && suami !== ""
         ? Number(suami)
         : null;
+
     const unMarriedNumber =
       unMarried !== undefined && unMarried !== null && unMarried !== ""
         ? Number(unMarried)
         : null;
+
     const istriNumber =
       istri !== undefined && istri !== null && istri !== ""
         ? Number(istri)
         : null;
+
     const totalNumber =
       total !== undefined && total !== null && total !== ""
         ? Number(total)
         : null;
 
-    // Validasi minimal supaya tidak kirim NaN
     if (
       (suamiNumber !== null && isNaN(suamiNumber)) ||
       (istriNumber !== null && isNaN(istriNumber)) ||
@@ -49,6 +52,9 @@ exports.create = async (req, res) => {
     ) {
       return res.status(400).json({ message: "Invalid numeric input" });
     }
+
+    // ====== FIX: gunakan TANGGAL DARI USER ======
+    const finalCreatedAt = createdAt ? new Date(createdAt) : new Date();
 
     const data = await Pemasukan.create({
       selectedCategory: selectedCategory || null,
@@ -61,6 +67,7 @@ exports.create = async (req, res) => {
       total: totalNumber,
       keterangan: keterangan || "",
       userId,
+      createdAt: finalCreatedAt,   // ⬅️ THIS IS THE FIX 🔥🔥
     });
 
     res.status(201).json(data);
@@ -72,6 +79,7 @@ exports.create = async (req, res) => {
     });
   }
 };
+
 
 // ===================================================================
 

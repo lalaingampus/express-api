@@ -5,7 +5,7 @@ exports.create = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const userId = req.user.userId;
-    const { selectedCategory, amount, selectedSumber, keterangan, selectedDebt } = req.body;
+    const { selectedCategory, amount, selectedSumber, keterangan, selectedDebt, createdAt  } = req.body;
     const parsedAmount = Number(amount);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -70,6 +70,7 @@ exports.create = async (req, res) => {
       amount: parsedAmount,
       keterangan: selectedCategory === 'Debt' ? '' : (keterangan || ''),
       userId,
+      createdAt: createdAt ? new Date(createdAt) : new Date(), 
       ...(selectedCategory === 'Debt' && { selectedDebt }),
     };
 
