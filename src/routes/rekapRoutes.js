@@ -7,134 +7,162 @@ const auth = require('../middleware/auth');
  * @swagger
  * tags:
  *   name: Rekap
- *   description: Rekap data harian, mingguan, dan bulanan pemasukan & pengeluaran
+ *   description: Rekap Statistik Harian, Mingguan, Bulanan
  */
 
 router.use(auth);
 
-/**
- * @swagger
- * /rekap/move_pengeluaran:
- *   post:
- *     summary: Buat rekap pengeluaran. Sistem otomatis menentukan daily/weekly/monthly berdasarkan createdAt.
- *     tags: [Rekap]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Rekap pengeluaran berhasil dibuat
- */
-router.post('/move_pengeluaran', rekapController.movePengeluaranToRekap);
 
-/**
- * @swagger
- * /rekap/move_pemasukan:
- *   post:
- *     summary: Buat rekap pemasukan. Sistem otomatis menentukan daily/weekly/monthly.
- *     tags: [Rekap]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Rekap pemasukan berhasil dibuat
- */
-router.post('/move_pemasukan', rekapController.movePemasukanToRekap);
+//
+// =========================
+// LIST REKAP PENGELUARAN
+// =========================
+//
 
 /**
  * @swagger
  * /rekap/pengeluaran:
  *   get:
- *     summary: Ambil daftar rekap pengeluaran (daily, weekly, monthly, atau bulanan lama menggunakan bulan/tahun)
  *     tags: [Rekap]
+ *     summary: Ambil rekap pengeluaran berdasarkan type (daily, weekly, monthly)
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: type
+ *         required: true
  *         schema:
  *           type: string
  *           enum: [daily, weekly, monthly]
- *         description: Filter berdasarkan tipe rekap
+ *         description: Jenis rekap (daily / weekly / monthly)
+ *
+ *       # ==== DAILY ====
  *       - in: query
  *         name: startDate
  *         schema:
  *           type: string
- *         description: Tanggal mulai (YYYY-MM-DD)
+ *           format: date
+ *         description: |
+ *           Format: YYYY-MM-DD  
+ *           Wajib jika type = daily
+ *
  *       - in: query
  *         name: endDate
  *         schema:
  *           type: string
- *         description: Tanggal akhir (YYYY-MM-DD)
+ *           format: date
+ *         description: |
+ *           Format: YYYY-MM-DD  
+ *           Wajib jika type = daily
+ *
+ *       # ==== MONTHLY ====
  *       - in: query
  *         name: bulan
  *         schema:
  *           type: integer
- *         description: Filter berdasarkan bulan (mode lama)
+ *         description: |
+ *           Bulan (1-12).  
+ *           Wajib jika type = monthly.
+ *
  *       - in: query
  *         name: tahun
  *         schema:
  *           type: integer
- *         description: Filter berdasarkan tahun (mode lama)
+ *         description: |
+ *           Tahun lengkap (misal 2025).  
+ *           Wajib jika type = monthly.
+ *
  *     responses:
  *       200:
- *         description: Data rekap pengeluaran berhasil diambil
+ *         description: Rekap pengeluaran
  */
 router.get('/pengeluaran', rekapController.rekapPengeluaranList);
+
+
+//
+// =========================
+// LIST REKAP PEMASUKAN
+// =========================
+//
 
 /**
  * @swagger
  * /rekap/pemasukan:
  *   get:
- *     summary: Ambil daftar rekap pemasukan (daily, weekly, monthly, atau bulanan lama menggunakan bulan/tahun)
  *     tags: [Rekap]
+ *     summary: Ambil rekap pemasukan berdasarkan type (daily, weekly, monthly)
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: type
+ *         required: true
  *         schema:
  *           type: string
  *           enum: [daily, weekly, monthly]
- *         description: Filter berdasarkan tipe rekap
+ *         description: Jenis rekap (daily / weekly / monthly)
+ *
+ *       # ==== DAILY ====
  *       - in: query
  *         name: startDate
  *         schema:
  *           type: string
- *         description: Tanggal mulai (YYYY-MM-DD)
+ *           format: date
+ *         description: |
+ *           Format: YYYY-MM-DD  
+ *           Wajib jika type = daily
+ *
  *       - in: query
  *         name: endDate
  *         schema:
  *           type: string
- *         description: Tanggal akhir (YYYY-MM-DD)
+ *           format: date
+ *         description: |
+ *           Format: YYYY-MM-DD  
+ *           Wajib jika type = daily
+ *
+ *       # ==== MONTHLY ====
  *       - in: query
  *         name: bulan
  *         schema:
  *           type: integer
- *         description: Filter berdasarkan bulan (mode lama)
+ *         description: |
+ *           Bulan (1-12).  
+ *           Wajib jika type = monthly.
+ *
  *       - in: query
  *         name: tahun
  *         schema:
  *           type: integer
- *         description: Filter berdasarkan tahun (mode lama)
+ *         description: |
+ *           Tahun lengkap (misal 2025).  
+ *           Wajib jika type = monthly.
+ *
  *     responses:
  *       200:
- *         description: Data rekap pemasukan berhasil diambil
+ *         description: Rekap pemasukan
  */
 router.get('/pemasukan', rekapController.rekapPemasukanList);
+
+
+//
+// =========================
+// LIST TRANSAKSI GABUNGAN
+// =========================
+//
 
 /**
  * @swagger
  * /rekap/transaksi_list_semua:
  *   get:
- *     summary: Ambil seluruh transaksi pemasukan & pengeluaran dalam satu list
  *     tags: [Rekap]
+ *     summary: Ambil semua transaksi pemasukan & pengeluaran suami/istri
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Semua transaksi berhasil diambil
+ *         description: List gabungan transaksi
  */
 router.get('/transaksi_list_semua', rekapController.transaksiListSemua);
-
 
 module.exports = router;

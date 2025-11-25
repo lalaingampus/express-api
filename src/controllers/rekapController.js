@@ -1,193 +1,110 @@
-const { Sequelize } = require('sequelize');
-const { sequelize, Pengeluaran, Pemasukan, RekapPengeluaran, RekapPemasukan } = require('../models');
+const { Sequelize, Op } = require("sequelize");
 const {
-  getDailyRange,
-  getWeeklyRange,
-  getMonthlyRange
-} = require('../utils/dateRange');
+  sequelize,
+  Pengeluaran,
+  Pemasukan
+} = require("../models");
 
-exports.movePengeluaranToRekap = async (req, res) => {
-  const t = await sequelize.transaction();
 
+// ===================================================
+// HELPER RANGE TANGGAL (WIB +07:00)
+// ===================================================
+function getDailyRange(startDate, endDate) {
+  return {
+    start: new Date(`${startDate}T00:00:00+07:00`),
+    end: new Date(`${endDate}T23:59:59+07:00`)
+  };
+}
+
+function getWeeklyRange() {
+  const now = new Date();
+
+  // konversi ke WIB
+  const wibNow = new Date(now.getTime() + 7 * 3600 * 1000);
+
+  const end = new Date(
+    `${wibNow.getFullYear()}-${String(wibNow.getMonth() + 1).padStart(2,"0")}-${String(wibNow.getDate()).padStart(2,"0")}T23:59:59+07:00`
+  );
+
+  const start = new Date(end);
+  start.setDate(start.getDate() - 6);
+  start.setHours(0,0,0,0);
+
+  return { start, end };
+}
+
+function getMonthlyRange(bulan, tahun) {
+  const month = parseInt(bulan, 10);
+  const year = parseInt(tahun, 10);
+
+  const start = new Date(`${year}-${String(month).padStart(2,"0")}-01T00:00:00+07:00`);
+
+  const end = new Date(start);
+  end.setMonth(start.getMonth() + 1);
+  end.setSeconds(end.getSeconds() - 1);
+
+  return { start, end };
+}
+
+
+
+// ===================================================
+// REKAP PEMASUKAN REALTIME (DAILY, WEEKLY, MONTHLY)
+// ===================================================
+exports.rekapPemasukanList = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const { type, startDate, endDate, bulan, tahun } = req.query;
 
-    // AMBIL SEMUA DATA USER
-    const rows = await Pengeluaran.findAll({ where: { userId }, transaction: t });
-    if (!rows.length) {
-      await t.rollback();
-      return res.status(404).json({ success: false, message: 'No pengeluaran data found.' });
-    }
-
-    // GUNAKAN CREATED AT TERBARU
-    const dates = rows.map(r => new Date(r.createdAt));
-    const latestDate = new Date(Math.max(...dates));
-
-    const today = new Date();
-    const diffDays = (today - latestDate) / (1000 * 60 * 60 * 24);
-
-    let type = "monthly";
-    let startDate, endDate;
-
-    // === AUTO DETECT TYPE ===
-    if (latestDate.toDateString() === today.toDateString()) {
-      type = "daily";
-    } 
-    else if (diffDays <= 7) {
-      type = "weekly";
-    } 
-    else {
-      type = "monthly";
-    }
-
-    // === HITUNG RANGE ===
-    endDate = today.toISOString().slice(0, 10);
+    let start, end;
 
     if (type === "daily") {
-      startDate = today.toISOString().slice(0, 10);
-    } 
-    else if (type === "weekly") {
-      const day = today.getDay(); // 0 = Sunday
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
-
-      startDate = monday.toISOString().slice(0, 10);
-    } 
-    else {
-      // MONTHLY
-      startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "startDate & endDate wajib untuk daily" });
+      }
+      ({ start, end } = getDailyRange(startDate, endDate));
     }
 
-    // === TOTAL DAN DATA ===
-    const total = rows.reduce((acc, r) => acc + Number(r.amount || 0), 0);
-    const data = rows.map(r => r.toJSON());
+    else if (type === "weekly") {
+      ({ start, end } = getWeeklyRange());
+    }
 
-    // === PAYLOAD ===
-    const payload = {
-      userId,
-      type,
-      startDate,
-      endDate,
-      totalPengeluaran: total,
-      month: today.getMonth() + 1,
-      year: today.getFullYear(),
-      data
-    };
+    else if (type === "monthly") {
+      if (!bulan || !tahun) {
+        return res.status(400).json({ message: "bulan & tahun wajib untuk monthly" });
+      }
+      ({ start, end } = getMonthlyRange(bulan, tahun));
+    }
 
-    // SIMPAN REKAP
-    const rekap = await RekapPengeluaran.create(payload, { transaction: t });
+    else {
+      return res.status(400).json({ message: "type harus daily | weekly | monthly" });
+    }
 
-    await t.commit();
-
-    res.json({
-      success: true,
-      message: `Rekap pengeluaran otomatis (${type}) berhasil.`,
-      rekap
+    const pemasukanRows = await Pemasukan.findAll({
+      where: {
+        userId,
+        createdAt: { [Op.between]: [start, end] }
+      },
+      order: [["createdAt", "DESC"]]
     });
 
-  } catch (error) {
-    await t.rollback();
-    res.status(500).json({ message: 'Error moving data.', error: error.message });
-  }
-};
-
-
-
-exports.movePemasukanToRekap = async (req, res) => {
-  const t = await sequelize.transaction();
-
-  try {
-    const userId = req.user.userId;
-
-    // AMBIL SEMUA PEMASUKAN USER
-    const rows = await Pemasukan.findAll({ where: { userId }, transaction: t });
-
-    if (!rows.length) {
-      await t.rollback();
-      return res.status(404).json({
-        success: false,
-        message: 'No pemasukan data found.'
-      });
-    }
-
-    // GUNAKAN CREATED AT TERBARU
-    const dates = rows.map(r => new Date(r.createdAt));
-    const latestDate = new Date(Math.max(...dates));
-
-    const today = new Date();
-    const diffDays = (today - latestDate) / (1000 * 60 * 60 * 24);
-
-    let type = "monthly";
-
-    // === AUTO DETECT ===
-    if (latestDate.toDateString() === today.toDateString()) {
-      type = "daily";
-    }
-    else if (diffDays <= 7) {
-      type = "weekly";
-    }
-    else {
-      type = "monthly";
-    }
-
-    // === HITUNG RANGE ===
-    let startDate;
-    const endDate = today.toISOString().slice(0, 10); // YYYY-MM-DD
-
-    if (type === "daily") {
-      startDate = today.toISOString().slice(0, 10);
-    } 
-    else if (type === "weekly") {
-      const day = today.getDay();
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1)); // Kalau hari minggu
-
-      startDate = monday.toISOString().slice(0, 10);
-    } 
-    else {
-      // MONTHLY
-      startDate = new Date(today.getFullYear(), today.getMonth(), 1)
-        .toISOString()
-        .slice(0, 10);
-    }
-
-    // === TOTAL PEMASUKAN ===
-    // total = total (kalau suami/istri null tetap 0)
-    const total = rows.reduce(
-      (acc, r) => acc + Number(r.total || 0),
+    const totalPemasukan = pemasukanRows.reduce(
+      (sum, r) => sum + (r.total || 0),
       0
     );
 
-    const data = rows.map(r => r.toJSON());
-
-    // === PAYLOAD ===
-    const payload = {
-      userId,
-      type,
-      startDate,
-      endDate,
-      totalPemasukan: total,
-      month: today.getMonth() + 1,
-      year: today.getFullYear(),
-      data,
-    };
-
-    // SIMPAN REKAP
-    const rekap = await RekapPemasukan.create(payload, { transaction: t });
-
-    await t.commit();
-
     res.json({
-      success: true,
-      message: `Rekap pemasukan otomatis (${type}) berhasil.`,
-      rekap
+      type,
+      startDate: start,
+      endDate: end,
+      totalPemasukan,
+      data: pemasukanRows
     });
 
   } catch (error) {
-    await t.rollback();
     res.status(500).json({
-      message: 'Error moving pemasukan data.',
-      error: error.message
+      message: "Error realtime rekap pemasukan",
+      error: error.message,
     });
   }
 };
@@ -195,106 +112,73 @@ exports.movePemasukanToRekap = async (req, res) => {
 
 
 
+// ===================================================
+// REKAP PENGELUARAN REALTIME (DAILY, WEEKLY, MONTHLY)
+// ===================================================
 exports.rekapPengeluaranList = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { type, startDate, endDate, bulan, tahun } = req.query;
 
-    let where = { userId };
+    let start, end;
 
-    // FILTER TYPE (harus strict)
-    if (type) {
-      where.type = type;
+    if (type === "daily") {
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "startDate & endDate wajib untuk daily" });
+      }
+      ({ start, end } = getDailyRange(startDate, endDate));
     }
 
-    // FILTER DATE RANGE
-    if (startDate && endDate) {
-      where.startDate = startDate;
-      where.endDate = endDate;
+    else if (type === "weekly") {
+      ({ start, end } = getWeeklyRange());
     }
 
-    // FILTER fallback monthly lama
-    if (bulan && tahun) {
-      where.month = parseInt(bulan, 10);
-      where.year = parseInt(tahun, 10);
+    else if (type === "monthly") {
+      if (!bulan || !tahun) {
+        return res.status(400).json({ message: "bulan & tahun wajib untuk monthly" });
+      }
+      ({ start, end } = getMonthlyRange(bulan, tahun));
     }
 
-    const rows = await RekapPengeluaran.findAll({
-      where,
-      order: [['createdAt', 'DESC']]
+    else {
+      return res.status(400).json({ message: "type harus daily | weekly | monthly" });
+    }
+
+    const pengeluaranRows = await Pengeluaran.findAll({
+      where: {
+        userId,
+        createdAt: { [Op.between]: [start, end] }
+      },
+      order: [["createdAt", "DESC"]]
     });
 
-    // Kalau type ada tapi data tidak ada → return 404
-    if (type && !rows.length) {
-      return res.status(404).json({
-        message: `Tidak ada rekap pengeluaran untuk type '${type}'`
-      });
-    }
+    const totalPengeluaran = pengeluaranRows.reduce(
+      (sum, r) => sum + (r.amount || 0),
+      0
+    );
 
-    res.json(rows);
-
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-
-
-
-exports.rekapPemasukanList = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-
-    const { type, startDate, endDate, bulan, tahun } = req.query;
-
-    let where = { userId };
-
-    // STRICT FILTER BY TYPE
-    if (type) {
-      where.type = type;
-    }
-
-    // DATE RANGE FILTER (opsional)
-    if (startDate && endDate) {
-      where.startDate = startDate;
-      where.endDate = endDate;
-    }
-
-    // FALLBACK MONTHLY FILTER (sistem lama)
-    if (bulan && tahun) {
-      where.month = parseInt(bulan, 10);
-      where.year = parseInt(tahun, 10);
-    }
-
-    const rows = await RekapPemasukan.findAll({
-      where,
-      order: [['createdAt', 'DESC']]
+    res.json({
+      type,
+      startDate: start,
+      endDate: end,
+      totalPengeluaran,
+      data: pengeluaranRows
     });
-
-    // JIKA TYPE ADA TAPI DATA TIDAK ADA
-    if (type && !rows.length) {
-      return res.status(404).json({
-        message: `Tidak ada rekap pemasukan untuk type '${type}'`
-      });
-    }
-
-    res.json(rows);
 
   } catch (error) {
-    res.status(500).json({ message: 'Error getting pemasukan', error: error.message });
+    res.status(500).json({
+      message: "Error realtime rekap pengeluaran",
+      error: error.message,
+    });
   }
 };
 
 
 
 
-
-/**
- * Versi /transaksi_list_semua (gabung pemasukan suami/istri & pengeluaran masing²)
- * Mengikuti pola lama:
- * - Istri: pemasukan dengan suami == null
- * - Suami: pemasukan dengan istri == null
- */
+// =======================================================
+// GABUNGAN TRANSAKSI (TANPA PERUBAHAN)
+// =======================================================
 exports.transaksiListSemua = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -302,13 +186,20 @@ exports.transaksiListSemua = async (req, res) => {
     const pemasukanIstriList = await Pemasukan.findAll({
       where: { suami: { [Sequelize.Op.is]: null }, userId },
     });
-    if (!pemasukanIstriList.length) return res.status(404).json({ message: 'No pemasukan data found for Istri' });
-    const pemasukanIstriId = pemasukanIstriList[0].id;
+    if (!pemasukanIstriList.length)
+      return res.status(404).json({
+        message: "No pemasukan data found for Istri",
+      });
 
     const pemasukanSuamiList = await Pemasukan.findAll({
       where: { istri: { [Sequelize.Op.is]: null }, userId },
     });
-    if (!pemasukanSuamiList.length) return res.status(404).json({ message: 'No pemasukan data found for Suami' });
+    if (!pemasukanSuamiList.length)
+      return res.status(404).json({
+        message: "No pemasukan data found for Suami",
+      });
+
+    const pemasukanIstriId = pemasukanIstriList[0].id;
     const pemasukanSuamiId = pemasukanSuamiList[0].id;
 
     const pengeluaranIstriList = await Pengeluaran.findAll({
@@ -320,16 +211,31 @@ exports.transaksiListSemua = async (req, res) => {
     });
 
     const combined = [
-      ...pemasukanIstriList.map(r => ({ ...r.toJSON(), __type: 'pemasukan_istri' })),
-      ...pemasukanSuamiList.map(r => ({ ...r.toJSON(), __type: 'pemasukan_suami' })),
-      ...pengeluaranIstriList.map(r => ({ ...r.toJSON(), __type: 'pengeluaran_istri' })),
-      ...pengeluaranSuamiList.map(r => ({ ...r.toJSON(), __type: 'pengeluaran_suami' })),
+      ...pemasukanIstriList.map((r) => ({
+        ...r.toJSON(),
+        __type: "pemasukan_istri",
+      })),
+      ...pemasukanSuamiList.map((r) => ({
+        ...r.toJSON(),
+        __type: "pemasukan_suami",
+      })),
+      ...pengeluaranIstriList.map((r) => ({
+        ...r.toJSON(),
+        __type: "pengeluaran_istri",
+      })),
+      ...pengeluaranSuamiList.map((r) => ({
+        ...r.toJSON(),
+        __type: "pengeluaran_suami",
+      })),
     ];
 
     combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     res.json(combined);
   } catch (error) {
-    res.status(500).json({ message: 'Error getting transaksi list', error: error.message });
+    res.status(500).json({
+      message: "Error getting transaksi list",
+      error: error.message,
+    });
   }
 };
