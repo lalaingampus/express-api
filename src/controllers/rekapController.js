@@ -56,31 +56,40 @@ exports.rekapPemasukanList = async (req, res) => {
     const userId = req.user.userId;
     const { type, startDate, endDate, bulan, tahun } = req.query;
 
+    if (!type) {
+      return res.status(400).json({ message: "type wajib dikirim (daily/weekly/monthly)" });
+    }
+
     let start, end;
 
+    // === DAILY ===
     if (type === "daily") {
       if (!startDate || !endDate) {
         return res.status(400).json({ message: "startDate & endDate wajib untuk daily" });
       }
-      ({ start, end } = getDailyRange(startDate, endDate));
+
+      start = new Date(`${startDate}T00:00:00+07:00`);
+      end   = new Date(`${endDate}T23:59:59+07:00`);
     }
 
+    // === WEEKLY ===
     else if (type === "weekly") {
-      ({ start, end } = getWeeklyRange());
+      end = new Date();
+      start = new Date();
+      start.setDate(end.getDate() - 6); // 7 hari terakhir
     }
 
+    // === MONTHLY ===
     else if (type === "monthly") {
       if (!bulan || !tahun) {
         return res.status(400).json({ message: "bulan & tahun wajib untuk monthly" });
       }
-      ({ start, end } = getMonthlyRange(bulan, tahun));
+
+      start = new Date(`${tahun}-${bulan}-01T00:00:00+07:00`);
+      end = new Date(tahun, bulan, 0, 23, 59, 59); // tgl terakhir bulan itu
     }
 
-    else {
-      return res.status(400).json({ message: "type harus daily | weekly | monthly" });
-    }
-
-    const pemasukanRows = await Pemasukan.findAll({
+    const pemasukan = await Pemasukan.findAll({
       where: {
         userId,
         createdAt: { [Op.between]: [start, end] }
@@ -88,63 +97,80 @@ exports.rekapPemasukanList = async (req, res) => {
       order: [["createdAt", "DESC"]]
     });
 
-    const totalPemasukan = pemasukanRows.reduce(
-      (sum, r) => sum + (r.total || 0),
-      0
-    );
+    const total = pemasukan.reduce((s, r) => s + (r.total || 0), 0);
 
     res.json({
       type,
-      startDate: start,
-      endDate: end,
-      totalPemasukan,
-      data: pemasukanRows
+      start,
+      end,
+      total,
+      data: pemasukan
     });
 
   } catch (error) {
-    res.status(500).json({
-      message: "Error realtime rekap pemasukan",
-      error: error.message,
-    });
+    res.status(500).json({ message: "Error rekap pemasukan", error: error.message });
   }
 };
 
 
 
 
+
+
 // ===================================================
-// REKAP PENGELUARAN REALTIME (DAILY, WEEKLY, MONTHLY)
+//  REKAP PENGELUARAN (DAILY, WEEKLY, MONTHLY)
 // ===================================================
 exports.rekapPengeluaranList = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { type, startDate, endDate, bulan, tahun } = req.query;
 
+    if (!type) {
+      return res.status(400).json({ message: "type wajib (daily/weekly/monthly)" });
+    }
+
     let start, end;
 
+    // DAILY
     if (type === "daily") {
       if (!startDate || !endDate) {
-        return res.status(400).json({ message: "startDate & endDate wajib untuk daily" });
+        return res.status(400).json({
+          message: "startDate & endDate wajib untuk daily"
+        });
       }
-      ({ start, end } = getDailyRange(startDate, endDate));
+
+      start = new Date(`${startDate}T00:00:00+07:00`);
+      end   = new Date(`${endDate}T23:59:59+07:00`);
     }
 
+    // WEEKLY (7 hari terakhir)
     else if (type === "weekly") {
-      ({ start, end } = getWeeklyRange());
+      end = new Date();
+      start = new Date();
+      start.setDate(end.getDate() - 6); // FIX!
     }
 
+    // MONTHLY
     else if (type === "monthly") {
       if (!bulan || !tahun) {
-        return res.status(400).json({ message: "bulan & tahun wajib untuk monthly" });
+        return res.status(400).json({
+          message: "bulan & tahun wajib untuk monthly"
+        });
       }
-      ({ start, end } = getMonthlyRange(bulan, tahun));
+
+      start = new Date(`${tahun}-${bulan}-01T00:00:00+07:00`);
+
+      // end = hari terakhir bulan tsb
+      end = new Date(tahun, bulan, 0, 23, 59, 59, 999);
     }
 
+    // TYPE invalid
     else {
-      return res.status(400).json({ message: "type harus daily | weekly | monthly" });
+      return res.status(400).json({ message: "Invalid type (daily/weekly/monthly)" });
     }
 
-    const pengeluaranRows = await Pengeluaran.findAll({
+    // Query data
+    const rows = await Pengeluaran.findAll({
       where: {
         userId,
         createdAt: { [Op.between]: [start, end] }
@@ -152,26 +178,25 @@ exports.rekapPengeluaranList = async (req, res) => {
       order: [["createdAt", "DESC"]]
     });
 
-    const totalPengeluaran = pengeluaranRows.reduce(
-      (sum, r) => sum + (r.amount || 0),
-      0
-    );
+    const total = rows.reduce((sum, r) => sum + (r.amount || 0), 0);
 
-    res.json({
+    return res.json({
       type,
-      startDate: start,
-      endDate: end,
-      totalPengeluaran,
-      data: pengeluaranRows
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+      totalPengeluaran: total,
+      data: rows
     });
 
   } catch (error) {
-    res.status(500).json({
-      message: "Error realtime rekap pengeluaran",
+    return res.status(500).json({
+      message: "Error rekap pengeluaran",
       error: error.message,
     });
   }
 };
+
+
 
 
 
