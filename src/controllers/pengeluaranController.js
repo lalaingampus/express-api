@@ -211,6 +211,33 @@ exports.destroy = async (req, res) => {
   }
 };
 
+exports.getById = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+
+    const row = await Pengeluaran.findOne({
+      where: { id, userId }
+    });
+
+    if (!row) {
+      return res.status(404).json({ message: "Data pengeluaran tidak ditemukan." });
+    }
+
+    res.json({
+      message: "Detail pengeluaran ditemukan.",
+      data: row
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Error mendapatkan detail pengeluaran",
+      error: error.message
+    });
+  }
+};
+
+
 exports.list = async (req, res) => {
   try {
     const userId = req.user.userId;

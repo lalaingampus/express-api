@@ -9,6 +9,7 @@ const auth = require('../middleware/auth');
  *   name: NB
  *   description: Catatan umum (notebook) pengguna
  */
+
 router.use(auth);
 
 /**
@@ -17,7 +18,8 @@ router.use(auth);
  *   get:
  *     summary: Ambil semua catatan NB
  *     tags: [NB]
- *     security: [{ bearerAuth: [] }]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Daftar catatan NB berhasil diambil
@@ -30,7 +32,41 @@ router.get('/', nbController.list);
  *   post:
  *     summary: Tambah catatan baru
  *     tags: [NB]
- *     security: [{ bearerAuth: [] }]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - keterangan
+ *             properties:
+ *               keterangan:
+ *                 type: string
+ *                 example: "Catatan harian penting"
+ *     responses:
+ *       201:
+ *         description: Catatan berhasil ditambahkan
+ */
+router.post('/', nbController.create);
+
+/**
+ * @swagger
+ * /nb/{id}:
+ *   put:
+ *     summary: Update catatan NB berdasarkan ID
+ *     tags: [NB]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID catatan NB
  *     requestBody:
  *       required: true
  *       content:
@@ -38,14 +74,38 @@ router.get('/', nbController.list);
  *           schema:
  *             type: object
  *             properties:
- *               keterangan: { type: string }
+ *               keterangan:
+ *                 type: string
+ *                 example: "Catatan sudah diupdate"
  *     responses:
- *       201:
- *         description: Catatan berhasil ditambahkan
+ *       200:
+ *         description: Catatan berhasil diupdate
+ *       404:
+ *         description: Catatan tidak ditemukan
  */
-router.post('/', nbController.create);
-
 router.put('/:id', nbController.update);
+
+/**
+ * @swagger
+ * /nb/{id}:
+ *   delete:
+ *     summary: Hapus catatan berdasarkan ID
+ *     tags: [NB]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID catatan NB
+ *     responses:
+ *       200:
+ *         description: Catatan berhasil dihapus
+ *       404:
+ *         description: Catatan tidak ditemukan
+ */
 router.delete('/:id', nbController.destroy);
 
 module.exports = router;

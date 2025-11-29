@@ -82,10 +82,28 @@ router.get("/:id", pemasukanController.getById);
  *         name: id
  *         required: true
  *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               selectedCategory: { type: string }
+ *               selectedPerson: { type: string }
+ *               selectedItem: { type: string }
+ *               selectedStatus: { type: string }
+ *               suami: { type: number }
+ *               istri: { type: number }
+ *               unMarried: { type: number }
+ *               total: { type: number }
+ *               keterangan: { type: string }
  *     responses:
- *       200: { description: Data berhasil diperbarui }
+ *       200:
+ *         description: Data berhasil diperbarui
  */
 router.put("/:id", pemasukanController.update);
+
 
 /**
  * @swagger

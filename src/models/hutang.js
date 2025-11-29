@@ -1,32 +1,41 @@
 const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
-  const CronLog = sequelize.define(
-    "CronLog",
+  const Hutang = sequelize.define(
+    "Hutang",
     {
-      type: {
-        type: DataTypes.ENUM("daily", "weekly", "monthly"),
-        allowNull: false,
+      id: {
+        type: DataTypes.INTEGER,
+        autoIncrement: true,
+        primaryKey: true,
       },
-      status: {
-        type: DataTypes.ENUM("success", "failed"),
-        allowNull: false,
-      },
-      message: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
+
       userId: {
         type: DataTypes.INTEGER,
-        allowNull: true,
-        field: "user_id", // follow your style
+        allowNull: false,
+        field: "user_id",
+      },
+
+      debtToPay: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+
+      keterangan: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+      },
+
+      status: {
+        type: DataTypes.ENUM("Belum Lunas", "Lunas"),
+        defaultValue: "Belum Lunas",
       },
     },
     {
-      tableName: "cron_logs", // <-- follow convention
-      timestamps: true,       // createdAt & updatedAt
+      tableName: "hutang",
+      timestamps: true, // createdAt & updatedAt aktif
     }
   );
 
-  return CronLog;
+  return Hutang;
 };

@@ -83,6 +83,27 @@ router.put('/:id', pengeluaranController.update);
 /**
  * @swagger
  * /pengeluaran/{id}:
+ *   get:
+ *     summary: Ambil detail pengeluaran berdasarkan ID
+ *     tags: [Pengeluaran]
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: 
+ *           type: integer
+ *         description: ID data pengeluaran yang ingin diambil
+ *     responses:
+ *       200:
+ *         description: Detail pengeluaran
+ */
+router.get('/:id', pengeluaranController.getById);
+
+
+/**
+ * @swagger
+ * /pengeluaran/{id}:
  *   delete:
  *     summary: Hapus data pengeluaran berdasarkan ID
  *     tags: [Pengeluaran]

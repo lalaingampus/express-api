@@ -8,6 +8,7 @@ const hutangRoutes = require('./hutangRoutes');
 const nbRoutes = require('./nbRoutes');
 const rekapRoutes = require('./rekapRoutes');
 
+
 // register all routes
 router.use('/auth', authRoutes);
 router.use('/pemasukan', pemasukanRoutes);
