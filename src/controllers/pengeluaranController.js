@@ -1,5 +1,4 @@
-const { Sequelize } = require('sequelize');
-const { sequelize, Pengeluaran, Pemasukan, Hutang } = require('../models');
+const { Sequelize, sequelize, Pengeluaran, Pemasukan, Hutang } = require('../models');
 
 exports.create = async (req, res) => {
   const t = await sequelize.transaction();
@@ -104,29 +103,45 @@ exports.update = async (req, res) => {
       return res.status(404).json({ message: 'Data pengeluaran not found' });
     }
 
-    const sumber = await Pemasukan.findOne({ where: { id: peng.selectedSumber, userId } });
+    const sumber = await Pemasukan.findOne({
+      where: { id: peng.selectedSumber, userId },
+    });
     if (!sumber) {
       await t.rollback();
-      return res.status(404).json({ message: 'Data pemasukan (sumber) not found' });
+      return res
+        .status(404)
+        .json({ message: 'Data pemasukan (sumber) not found' });
     }
 
-    // Kembalikan jumlah lama ke saldo
+    // ========== 1. Kembalikan jumlah lama ke saldo ==========
     const oldAmount = peng.amount;
+
     if (sumber.suami && sumber.suami !== 0) {
-      await sumber.update({ suami: sumber.suami + oldAmount }, { transaction: t });
+      await sumber.update(
+        { suami: sumber.suami + oldAmount },
+        { transaction: t },
+      );
     } else if (sumber.istri && sumber.istri !== 0) {
-      await sumber.update({ istri: sumber.istri + oldAmount }, { transaction: t });
+      await sumber.update(
+        { istri: sumber.istri + oldAmount },
+        { transaction: t },
+      );
     } else if (sumber.unMarried && sumber.unMarried !== 0) {
-      await sumber.update({ unMarried: sumber.unMarried + oldAmount }, { transaction: t });
-    }
-    
-    else {
+      await sumber.update(
+        { unMarried: sumber.unMarried + oldAmount },
+        { transaction: t },
+      );
+    } else {
       await t.rollback();
-      return res.status(400).json({ message: 'Neither suami nor istri nor unmarried has a valid amount to update back' });
+      return res.status(400).json({
+        message:
+          'Neither suami nor istri nor unmarried has a valid amount to update back',
+      });
     }
 
-    // Update pengeluaran amount/keterangan (dan opsi selectedSumber)
-    const newAmount = body.amount !== undefined ? Number(body.amount) : oldAmount;
+    // ========== 2. Hitung amount baru & sumber baru ==========
+    const newAmount =
+      body.amount !== undefined ? Number(body.amount) : oldAmount;
     if (isNaN(newAmount) || newAmount <= 0) {
       await t.rollback();
       return res.status(400).json({ message: 'Invalid amount' });
@@ -134,39 +149,91 @@ exports.update = async (req, res) => {
 
     const newSumberId = body.selectedSumber ?? peng.selectedSumber;
     let targetSumber = sumber;
+
     if (newSumberId !== peng.selectedSumber) {
-      targetSumber = await Pemasukan.findOne({ where: { id: newSumberId, userId } });
+      targetSumber = await Pemasukan.findOne({
+        where: { id: newSumberId, userId },
+      });
       if (!targetSumber) {
         await t.rollback();
         return res.status(404).json({ message: 'New sumber not found' });
       }
     }
 
-    // Potong saldo di target sumber
+    // ========== 3. Potong saldo di sumber baru ==========
     if ((targetSumber.suami || 0) >= newAmount) {
-      await targetSumber.update({ suami: (targetSumber.suami || 0) - newAmount }, { transaction: t });
+      await targetSumber.update(
+        { suami: (targetSumber.suami || 0) - newAmount },
+        { transaction: t },
+      );
     } else if ((targetSumber.istri || 0) >= newAmount) {
-      await targetSumber.update({ istri: (targetSumber.istri || 0) - newAmount }, { transaction: t });
+      await targetSumber.update(
+        { istri: (targetSumber.istri || 0) - newAmount },
+        { transaction: t },
+      );
     } else if ((targetSumber.unMarried || 0) >= newAmount) {
-      await targetSumber.update({ unMarried: (targetSumber.unMarried || 0) - newAmount }, { transaction: t });
-    }
-    else {
+      await targetSumber.update(
+        { unMarried: (targetSumber.unMarried || 0) - newAmount },
+        { transaction: t },
+      );
+    } else {
       await t.rollback();
-      return res.status(400).json({ message: 'Insufficient balance on new sumber' });
+      return res
+        .status(400)
+        .json({ message: 'Insufficient balance on new sumber' });
     }
 
-    await peng.update({
-      amount: newAmount,
-      keterangan: body.keterangan ?? peng.keterangan,
-      selectedSumber: newSumberId,
-      updatedAt: new Date().toISOString(),
-    }, { transaction: t });
+    // ========== 4. Hitung newCreatedAt ==========
+    const newCreatedAt = body.createdAt
+      ? new Date(body.createdAt)
+      : peng.createdAt;
 
+    // ========== 5. Update kolom biasa via Sequelize ==========
+    await peng.update(
+      {
+        amount: newAmount,
+        keterangan: body.keterangan ?? peng.keterangan,
+        selectedSumber: newSumberId,
+        updatedAt: new Date(), // boleh pakai Date().toISOString() juga
+      },
+      { transaction: t },
+    );
+
+    // ========== 6. Paksa update createdAt via RAW SQL ==========
+    if (body.createdAt) {
+      await sequelize.query(
+        `
+        UPDATE "data_pengeluaran"
+        SET "createdAt" = :newDate
+        WHERE id = :id AND "user_id" = :userId
+      `,
+        {
+          replacements: {
+            newDate: newCreatedAt,
+            id,
+            userId,
+          },
+          transaction: t,
+        },
+      );
+    }
+
+    // ========== 7. Commit & ambil data terbaru ==========
     await t.commit();
-    res.json({ message: 'Data pengeluaran updated successfully' });
+
+    const updated = await Pengeluaran.findOne({ where: { id, userId } });
+
+    return res.json({
+      message: 'Data pengeluaran updated successfully',
+      data: updated,
+    });
   } catch (error) {
     await t.rollback();
-    res.status(500).json({ message: 'Error updating pengeluaran', error: error.message });
+    console.error('ERROR UPDATE PENGELUARAN:', error);
+    res.status(500).json({
+      message: 'Error updating pengeluaran',
+      error: error.message,
+    });
   }
 };
 
@@ -188,28 +255,50 @@ exports.destroy = async (req, res) => {
       return res.status(404).json({ message: 'Data pemasukan not found' });
     }
 
-    // Kembalikan amount ke saldo (logika: prefer yang non-null / non-zero)
+    // =============== RESTORE SALDO PEMASUKAN ===============
     if (sumber.suami !== null && sumber.suami !== 0) {
       await sumber.update({ suami: sumber.suami + peng.amount }, { transaction: t });
     } else if (sumber.istri !== null && sumber.istri !== 0) {
       await sumber.update({ istri: sumber.istri + peng.amount }, { transaction: t });
-    }else if (sumber.unMarried !== null && sumber.unMarried !== 0) {
+    } else if (sumber.unMarried !== null && sumber.unMarried !== 0) {
       await sumber.update({ unMarried: sumber.unMarried + peng.amount }, { transaction: t });
-    }
-    
-    else {
+    } else {
       await t.rollback();
-      return res.status(400).json({ message: 'Neither suami nor istri has valid amount to update' });
+      return res.status(400).json({ message: 'Cannot restore balance' });
     }
 
+    // =============== RESTORE HUTANG JIKA KATEGORI DEBT ===============
+    if (peng.selectedCategory === 'Debt' && peng.selectedDebt) {
+      const hutang = await Hutang.findOne({ where: { id: peng.selectedDebt, userId } });
+
+      if (hutang) {
+        const newDebt = (hutang.debtToPay || 0) + peng.amount;
+
+        await hutang.update({
+          debtToPay: newDebt,
+          status: newDebt === 0 ? 'Lunas' : 'Belum Lunas',
+          updatedAt: new Date()
+        }, { transaction: t });
+      }
+    }
+
+    // =============== DELETE PENGELUARAN ===============
     await peng.destroy({ transaction: t });
     await t.commit();
-    res.json({ message: 'Data pengeluaran deleted successfully, and amount returned to selectedSumber' });
+
+    res.json({
+      message: 'Data pengeluaran berhasil dihapus & saldo + hutang dipulihkan'
+    });
+
   } catch (error) {
     await t.rollback();
-    res.status(500).json({ message: 'Error deleting pengeluaran', error: error.message });
+    res.status(500).json({
+      message: 'Error deleting pengeluaran',
+      error: error.message
+    });
   }
 };
+
 
 exports.getById = async (req, res) => {
   try {

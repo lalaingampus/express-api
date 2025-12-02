@@ -1,4 +1,4 @@
-const { Sequelize, Pemasukan } = require("../models");
+const { Sequelize, sequelize, Pemasukan } = require("../models");
 
 exports.create = async (req, res) => {
   try {
@@ -20,7 +20,7 @@ exports.create = async (req, res) => {
       istri,
       total,
       keterangan,
-      createdAt
+      createdAt,
     } = req.body;
 
     // ====== Numerik cleaner ======
@@ -67,7 +67,7 @@ exports.create = async (req, res) => {
       total: totalNumber,
       keterangan: keterangan || "",
       userId,
-      createdAt: finalCreatedAt,   // ⬅️ THIS IS THE FIX 🔥🔥
+      createdAt: finalCreatedAt, // ⬅️ THIS IS THE FIX 🔥🔥
     });
 
     res.status(201).json(data);
@@ -79,7 +79,6 @@ exports.create = async (req, res) => {
     });
   }
 };
-
 
 // ===================================================================
 
@@ -99,20 +98,20 @@ exports.listByUser = async (req, res) => {
       else if (d.suami > 0) amountToDisplay = d.suami;
       else if (d.istri > 0) amountToDisplay = d.istri;
       else if (d.unMarried > 0) amountToDisplay = d.unMarried;
-        return {
-          id: d.id,
-          selectedCategory: d.selectedCategory,
-          selectedPerson: d.selectedPerson,
-          selectedItem: d.selectedItem,
-          selectedStatus: d.selectedStatus,
-          unMarried : d.unMarried,
-          suami: d.suami,
-          istri: d.istri,
-          total: d.total,
-          keterangan: d.keterangan,
-          amountToDisplay,
-          createdAt: d.createdAt,
-        };
+      return {
+        id: d.id,
+        selectedCategory: d.selectedCategory,
+        selectedPerson: d.selectedPerson,
+        selectedItem: d.selectedItem,
+        selectedStatus: d.selectedStatus,
+        unMarried: d.unMarried,
+        suami: d.suami,
+        istri: d.istri,
+        total: d.total,
+        keterangan: d.keterangan,
+        amountToDisplay,
+        createdAt: d.createdAt,
+      };
     });
 
     res.json(mapped);
@@ -171,48 +170,88 @@ exports.update = async (req, res) => {
   try {
     const userId = req.user.userId;
     const id = req.params.id;
+
     const data = await Pemasukan.findOne({ where: { id, userId } });
     if (!data)
       return res.status(404).json({ message: "Data pemasukan not found" });
 
     const body = req.body;
+
+    // Clean numeric conversion
     const newSuami =
       body.suami !== undefined && body.suami !== ""
         ? Number(body.suami)
         : data.suami;
+
     const newIstri =
       body.istri !== undefined && body.istri !== ""
         ? Number(body.istri)
         : data.istri;
+
     const newTotal =
       body.total !== undefined && body.total !== ""
         ? Number(body.total)
         : data.total;
+
     const newUnMarried =
       body.unMarried !== undefined && body.unMarried !== ""
         ? Number(body.unMarried)
         : data.unMarried;
 
+    // --- convert createdAt ---
+    const newCreatedAt = body.createdAt
+      ? new Date(body.createdAt)
+      : data.createdAt;
+
+    // 1️⃣ Update kolom biasa
     await data.update({
-      ...data.toJSON(),
+      selectedCategory: body.selectedCategory ?? data.selectedCategory,
+      selectedPerson: body.selectedPerson ?? data.selectedPerson,
+      selectedItem: body.selectedItem ?? data.selectedItem,
+      selectedStatus: body.selectedStatus ?? data.selectedStatus,
+
       suami: newSuami,
       istri: newIstri,
       unMarried: newUnMarried,
       total: newTotal,
       keterangan: body.keterangan ?? data.keterangan,
+
       updatedAt: new Date(),
     });
 
+    // 2️⃣ Update createdAt via RAW SQL (agar tidak di-block Sequelize)
+    if (body.createdAt) {
+      await sequelize.query(
+        `UPDATE "data_pemasukan"
+         SET "createdAt" = :newDate
+         WHERE id = :id AND "user_id" = :userId`,
+        {
+          replacements: {
+            newDate: newCreatedAt,
+            id,
+            userId,
+          },
+        }
+      );
+    }
+
+    // Ambil ulang data setelah update createdAt
+    const updated = await Pemasukan.findOne({ where: { id, userId } });
+
     res.json({
       message: "Data pemasukan updated successfully",
-      updatedData: data,
+      updatedData: updated,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error updating pemasukan", error: error.message });
+    console.error("UPDATE ERROR:", error);
+    res.status(500).json({
+      message: "Error updating pemasukan",
+      error: error.message,
+    });
   }
 };
+
+
 
 // ===================================================================
 

@@ -14,15 +14,29 @@ module.exports = (sequelize) => {
         allowNull: true, // 'suami' atau 'istri'
       },
 
+
       userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
         field: "user_id", // 🧠 tambahkan ini supaya map ke kolom 'user_id' di DB
       },
+      // ⬇⬇ FIX PALING PENTING ⬇⬇
+      createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        field: "createdAt",
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        field: "updatedAt",
+      },
     },
     {
       tableName: "data_pengeluaran",
       timestamps: true,
+      createdAt: "createdAt",
+      updatedAt: "updatedAt",
     }
   );
 

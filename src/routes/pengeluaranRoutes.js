@@ -69,9 +69,16 @@ router.post('/', pengeluaranController.create);
  *           schema:
  *             type: object
  *             properties:
- *               amount: { type: number }
- *               selectedSumber: { type: number }
- *               keterangan: { type: string }
+ *               amount:
+ *                 type: number
+ *               selectedSumber:
+ *                 type: number
+ *               keterangan:
+ *                 type: string
+ *               createdAt:                 # ⬅⬅⬅ TAMBAH INI
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2025-12-01T04:31:00.000Z"
  *     responses:
  *       200:
  *         description: Pengeluaran berhasil diupdate

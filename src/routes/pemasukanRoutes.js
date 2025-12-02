@@ -98,12 +98,12 @@ router.get("/:id", pemasukanController.getById);
  *               unMarried: { type: number }
  *               total: { type: number }
  *               keterangan: { type: string }
+ *               createdAt: { type: string, format: "date-time" }
  *     responses:
  *       200:
  *         description: Data berhasil diperbarui
  */
 router.put("/:id", pemasukanController.update);
-
 
 /**
  * @swagger
