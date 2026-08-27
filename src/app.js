@@ -4,14 +4,16 @@ const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocs = require('./config/swagger');
 
-// Lazy-load routes to avoid DB connection on cold start
-let routes = null;
+// Lazy-loaded routes
+let routesLoaded = false;
+let mainRoutes = null;
 let adminRoutes = null;
 
 function loadRoutes() {
-  if (!routes) {
-    routes = require('./routes');
+  if (!routesLoaded) {
+    mainRoutes = require('./routes');
     adminRoutes = require('./routes/adminRoutes');
+    routesLoaded = true;
   }
 }
 
@@ -27,20 +29,31 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Load routes on first request (lazy)
+// Lazy route mounting middleware - runs on every request until routes are loaded
 app.use((req, res, next) => {
   loadRoutes();
   next();
 });
 
-// Swagger docs
+// Swagger docs (doesn't need DB)
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// Admin API routes
-app.use('/admin', adminRoutes);
+// Mount routes lazily - use a middleware that proxies to the actual routes
+app.use('/admin', (req, res, next) => {
+  loadRoutes();
+  if (adminRoutes) {
+    return adminRoutes(req, res, next);
+  }
+  next();
+});
 
-// Routes utama
-app.use('/api', routes);
+app.use('/api', (req, res, next) => {
+  loadRoutes();
+  if (mainRoutes) {
+    return mainRoutes(req, res, next);
+  }
+  next();
+});
 
 // Static files for admin dashboard
 app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
