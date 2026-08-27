@@ -5,13 +5,19 @@ module.exports = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
   host: process.env.DB_HOST,
-  dialect: process.env.DB_DIALECT || 'postgres',
+  dialect: 'postgres',
   port: process.env.DB_PORT || 5432,
   dialectOptions: {
-    ssl: process.env.DB_SSL === 'true' ? {
+    ssl: {
       require: true,
       rejectUnauthorized: false,
-    } : false,
+    }
   },
   logging: false,
+  pool: {
+    max: process.env.NODE_ENV === 'production' ? 1 : 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
 };
