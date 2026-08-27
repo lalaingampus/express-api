@@ -15,6 +15,9 @@ function getSequelize() {
       throw new Error(`Missing required env vars: ${missing.join(', ')}`);
     }
 
+    // Explicitly require pg to ensure it's bundled
+    const pg = require('pg');
+    
     sequelize = new Sequelize(
       dbConfig.database,
       dbConfig.username,
@@ -22,7 +25,8 @@ function getSequelize() {
       {
         ...dbConfig,
         host: dbConfig.host,
-        dialect: dbConfig.dialect,
+        dialect: 'postgres',
+        dialectModule: pg,
         port: dbConfig.port,
         pool: {
           max: isProduction ? 1 : 5,
