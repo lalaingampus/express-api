@@ -28,14 +28,25 @@ function getSequelize() {
         dialect: 'postgres',
         dialectModule: pg,
         port: dbConfig.port,
+        // Optimized pool for serverless
         pool: {
-          max: isProduction ? 1 : 5,
-          min: 0,
-          acquire: 30000,
-          idle: 10000,
+          max: 3,
+          min: 1,
+          acquire: 60000,
+          idle: 30000,
+          evict: 10000,
         },
         logging: false,
         retry: { max: 3 },
+        // Neon optimizations
+        dialectOptions: {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false,
+          },
+          // Keep connection alive
+          keepAlive: true,
+        },
       }
     );
   }
