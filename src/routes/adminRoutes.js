@@ -3,6 +3,8 @@ const router = express.Router();
 const adminController = require('../controllers/adminController');
 const auth = require('../middleware/auth');
 
+router.get('/health', adminController.health);
+
 router.get('/login', adminController.loginPage);
 
 router.post('/login', adminController.login);

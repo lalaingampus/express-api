@@ -20,13 +20,10 @@ const sequelize = new Sequelize(
       idle: 10000,
     },
     logging: false,
+    // Prevent connection issues on serverless
+    retry: { max: 3 },
   }
 );
-
-// Test connection on cold start
-if (isProduction) {
-  sequelize.authenticate().catch(console.error);
-}
 
 // Import semua model
 const User = require('./user')(sequelize);
@@ -56,6 +53,9 @@ RekapPengeluaran.belongsTo(User, { foreignKey: 'userId' });
 Pemasukan.hasMany(Pengeluaran, { foreignKey: 'selectedSumber', onDelete: 'SET NULL' });
 Pengeluaran.belongsTo(Pemasukan, { foreignKey: 'selectedSumber', as: 'sumber' });
 
+// Export a function to test connection on-demand
+const testConnection = () => sequelize.authenticate();
+
 module.exports = {
   sequelize,
   User,
@@ -65,4 +65,5 @@ module.exports = {
   NB,
   RekapPemasukan,
   RekapPengeluaran,
+  testConnection,
 };

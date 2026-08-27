@@ -13,17 +13,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static files for admin dashboard
-app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
-
 // Swagger docs
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// Admin routes
+// Admin API routes (must come before static files)
 app.use('/admin', adminRoutes);
 
 // Routes utama
 app.use('/api', routes);
+
+// Static files for admin dashboard (after routes so API takes priority)
+app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
 
 // Root check
 app.get('/', (_req, res) => {

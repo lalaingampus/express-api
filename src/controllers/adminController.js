@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { User, sequelize, testConnection } = require('../models');
 
 exports.loginPage = (req, res) => {
   res.sendFile('login.html', { root: 'public/admin' });
@@ -8,6 +8,16 @@ exports.loginPage = (req, res) => {
 
 exports.dashboardPage = (req, res) => {
   res.sendFile('dashboard.html', { root: 'public/admin' });
+};
+
+// Health check for DB
+exports.health = async (req, res) => {
+  try {
+    await testConnection();
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (err) {
+    res.status(503).json({ status: 'error', db: 'disconnected', error: err.message });
+  }
 };
 
 exports.login = async (req, res) => {
