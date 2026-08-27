@@ -11,6 +11,13 @@ const {
 const User = require("./src/models/user");
 const CronLog = require("./src/models/cronlog");
 
+// Skip cron on Vercel (serverless)
+if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+  console.log("⏭️ Cron disabled on Vercel");
+  module.exports = {};
+  process.exit(0);
+}
+
 // Set timezone Asia/Jakarta
 moment.tz.setDefault("Asia/Jakarta");
 

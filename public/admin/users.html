@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manajemen User - Finance Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; }
+    .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: 260px; background: white; border-right: 1px solid #e5e5e5; padding: 24px 0; display: flex; flex-direction: column; }
+    .sidebar-header { padding: 0 24px 24px; border-bottom: 1px solid #e5e5e5; margin-bottom: 24px; }
+    .sidebar-header h1 { font-size: 18px; font-weight: 600; color: #1a1a1a; }
+    .sidebar-header span { font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+    .nav-menu { list-style: none; flex: 1; padding: 0 12px; }
+    .nav-item { margin-bottom: 4px; }
+    .nav-link { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; color: #444; text-decoration: none; font-size: 14px; font-weight: 500; transition: background 0.2s, color 0.2s; }
+    .nav-link:hover { background: #f0f0f0; color: #1a1a1a; }
+    .nav-link.active { background: #eff6ff; color: #2563eb; }
+    .nav-link svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-link.external { color: #666; }
+    .nav-link.external:hover { background: #f0f0f0; color: #1a1a1a; }
+    .sidebar-footer { padding: 16px 24px; border-top: 1px solid #e5e5e5; }
+    .btn-logout { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s; }
+    .btn-logout:hover { background: #fee2e2; border-color: #fca5a5; }
+    .btn-logout svg { width: 18px; height: 18px; }
+    .main { margin-left: 260px; padding: 32px; min-height: 100vh; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .header h2 { font-size: 24px; font-weight: 600; color: #1a1a1a; }
+    .user-info { display: flex; align-items: center; gap: 12px; }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
+    .user-details { display: flex; flex-direction: column; }
+    .user-name { font-weight: 500; color: #1a1a1a; font-size: 14px; }
+    .user-email { font-size: 12px; color: #999; }
+    .section { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e5e5e5; overflow: hidden; }
+    .section-header { padding: 20px 24px; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; }
+    .section-title { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    th { background: #fafafa; font-weight: 600; color: #333; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+    tr:hover td { background: #fafafa; }
+    tr:last-child td { border-bottom: none; }
+    .user-cell { display: flex; align-items: center; gap: 12px; }
+    .user-avatar-sm { width: 32px; height: 32px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; }
+    .user-name-cell { font-weight: 500; color: #1a1a1a; }
+    .user-email-cell { font-size: 12px; color: #999; }
+    .currency { font-family: monospace; font-weight: 500; white-space: nowrap; }
+    .currency.income { color: #16a34a; }
+    .currency.expense { color: #dc2626; }
+    .currency.debt { color: #f59e0b; }
+    .currency.balance-positive { color: #16a34a; }
+    .currency.balance-negative { color: #dc2626; }
+    .date-cell { color: #666; font-size: 12px; white-space: nowrap; }
+    .empty { text-align: center; color: #999; padding: 60px 24px; }
+    .loading { display: flex; align-items: center; justify-content: center; padding: 60px; color: #999; }
+    .actions-cell { display: flex; gap: 8px; }
+    .btn-icon { padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px; transition: background 0.2s; }
+    .btn-edit { background: #eff6ff; color: #2563eb; }
+    .btn-edit:hover { background: #dbeafe; }
+    .btn-delete { background: #fef2f2; color: #dc2626; }
+    .btn-delete:hover { background: #fee2e2; }
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: white; border-radius: 12px; padding: 24px; width: 100%; max-width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-title { font-size: 18px; font-weight: 600; color: #1a1a1a; }
+    .modal-close { background: none; border: none; font-size: 20px; color: #999; cursor: pointer; padding: 4px; line-height: 1; }
+    .modal-close:hover { color: #333; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #333; margin-bottom: 6px; }
+    .form-group input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .form-group input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .form-group small { display: block; margin-top: 4px; font-size: 12px; color: #999; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+    .btn { padding: 10px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: background 0.2s; }
+    .btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #e5e5e5; }
+    .btn-secondary:hover { background: #e5e5e5; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    .error-msg { background: #fef2f2; color: #dc2626; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; display: none; }
+    .error-msg.show { display: block; }
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s; z-index: 100; }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; padding: 20px; }
+      .header { flex-direction: column; gap: 16px; align-items: flex-start; }
+      th, td { padding: 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h1>Finance Tracker</h1>
+      <span>Admin Panel</span>
+    </div>
+    <nav>
+      <ul class="nav-menu">
+        <li class="nav-item">
+          <a href="/admin/dashboard.html" class="nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="/admin/users.html" class="nav-link active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Manajemen User
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="/docs" target="_blank" class="nav-link external">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Dokumentasi API (Swagger)
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Keluar
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="header">
+      <h2>Manajemen User</h2>
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar">A</div>
+        <div class="user-details">
+          <span class="user-name" id="userName">Memuat...</span>
+          <span class="user-email" id="userEmail"></span>
+        </div>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="section-header">
+        <h3 class="section-title">Daftar User Terdaftar</h3>
+        <span id="userCount" style="font-size: 13px; color: #999;">0 user</span>
+      </div>
+      <div class="table-container">
+        <table id="usersTable">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Pemasukan</th>
+              <th>Pengeluaran</th>
+              <th>Hutang</th>
+              <th>Saldo Bersih</th>
+              <th>Bergabung</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr>
+              <td colspan="7"><div class="loading">Memuat data user...</div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const token = localStorage.getItem('admin_token');
+    console.log('Users page loaded, token:', token ? 'exists' : 'missing');
+    if (!token) {
+      window.location.href = '/admin/login';
+    }
+
+    async function fetchWithAuth(url) {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      console.log(`Fetch ${url}:`, res.status);
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return null;
+      }
+      return res.json();
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    async function loadUsers() {
+      const data = await fetchWithAuth('/admin/users');
+      if (!data) return;
+
+      const tbody = document.getElementById('usersTableBody');
+      const countEl = document.getElementById('userCount');
+      
+      if (!data.users || data.users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Belum ada user terdaftar</div></td></tr>';
+        countEl.textContent = '0 user';
+        return;
+      }
+
+      countEl.textContent = `${data.users.length} user${data.users.length > 1 ? 's' : ''}`;
+
+      tbody.innerHTML = data.users.map(user => `
+        <tr>
+          <td>
+            <div class="user-cell">
+              <div class="user-avatar-sm">${user.username.charAt(0).toUpperCase()}</div>
+              <div>
+                <div class="user-name-cell">${user.username}</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="user-email-cell">${user.email}</span></td>
+          <td><span class="currency income">${formatCurrency(user.pemasukan)}</span></td>
+          <td><span class="currency expense">${formatCurrency(user.pengeluaran)}</span></td>
+          <td><span class="currency debt">${formatCurrency(user.hutang)}</span></td>
+          <td><span class="currency ${user.saldo >= 0 ? 'balance-positive' : 'balance-negative'}">${formatCurrency(user.saldo)}</span></td>
+          <td><span class="date-cell">${formatDate(user.createdAt)}</span></td>
+          <td>
+            <div class="actions-cell">
+              <button class="btn-icon btn-edit" data-user='${JSON.stringify(user).replace(/'/g, "&apos;")}'>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+              </button>
+              <button class="btn-icon btn-delete" data-user-id="${user.id}" data-username="${user.username.replace(/'/g, "&apos;")}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Hapus
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadCurrentUser() {
+      try {
+        const data = await fetchWithAuth('/admin/verify');
+        console.log('loadCurrentUser data:', data);
+        if (data && data.user) {
+          const nameEl = document.getElementById('userName');
+          const emailEl = document.getElementById('userEmail');
+          const avatarEl = document.getElementById('userAvatar');
+          console.log('Elements found:', { nameEl, emailEl, avatarEl });
+          if (nameEl) nameEl.textContent = data.user.username;
+          if (emailEl) emailEl.textContent = data.user.email;
+          if (avatarEl) avatarEl.textContent = data.user.username.charAt(0).toUpperCase();
+        }
+      } catch (err) {
+        console.error('loadCurrentUser error:', err);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadUsers();
+      loadCurrentUser();
+
+      document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+      });
+
+      // Event delegation for edit/delete buttons
+      document.getElementById('usersTableBody').addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.btn-edit');
+        if (editBtn) {
+          const user = JSON.parse(editBtn.dataset.user);
+          openEditModal(user);
+          return;
+        }
+        const deleteBtn = e.target.closest('.btn-delete');
+        if (deleteBtn) {
+          const id = parseInt(deleteBtn.dataset.userId);
+          const username = deleteBtn.dataset.username;
+          confirmDelete(id, username);
+        }
+      });
+
+      let editUserId = null;
+
+    function openEditModal(user) {
+      editUserId = user.id;
+      document.getElementById('editUserId').value = user.id;
+      document.getElementById('editUsername').value = user.username;
+      document.getElementById('editEmail').value = user.email;
+      document.getElementById('editPassword').value = '';
+      document.getElementById('editError').classList.remove('show');
+      document.getElementById('editModal').classList.add('show');
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').classList.remove('show');
+      editUserId = null;
+    }
+
+    document.getElementById('editModalClose').addEventListener('click', closeEditModal);
+    document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
+    document.getElementById('editModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('editModal')) closeEditModal();
+    });
+
+    document.getElementById('editForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('editSaveBtn');
+      const errorEl = document.getElementById('editError');
+      btn.disabled = true;
+      btn.textContent = 'Menyimpan...';
+      errorEl.classList.remove('show');
+
+      try {
+        const res = await fetch(`/admin/users/${editUserId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            username: document.getElementById('editUsername').value,
+            email: document.getElementById('editEmail').value,
+            password: document.getElementById('editPassword').value || undefined
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Gagal update user');
+
+        closeEditModal();
+        loadUsers();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Simpan';
+      }
+    });
+
+    let deleteUserId = null;
+
+    function confirmDelete(id, username) {
+      deleteUserId = id;
+      document.getElementById('deleteUsername').textContent = username;
+      document.getElementById('deleteError').classList.remove('show');
+      document.getElementById('deleteModal').classList.add('show');
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').classList.remove('show');
+      deleteUserId = null;
+    }
+
+    document.getElementById('deleteModalClose').addEventListener('click', closeDeleteModal);
+    document.getElementById('deleteCancelBtn').addEventListener('click', closeDeleteModal);
+    document.getElementById('deleteModal').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('deleteModal')) closeDeleteModal();
+    });
+
+    document.getElementById('deleteConfirmBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('deleteConfirmBtn');
+      const errorEl = document.getElementById('deleteError');
+      btn.disabled = true;
+      btn.textContent = 'Menghapus...';
+      errorEl.classList.remove('show');
+
+      try {
+        const res = await fetch(`/admin/users/${deleteUserId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Gagal hapus user');
+
+        closeDeleteModal();
+        loadUsers();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Hapus';
+      }
+    });
+  });
+</script>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit User</h3>
+        <button class="modal-close" id="editModalClose">&times;</button>
+      </div>
+      <form id="editForm">
+        <input type="hidden" id="editUserId">
+        <div class="error-msg" id="editError"></div>
+        <div class="form-group">
+          <label for="editUsername">Username</label>
+          <input type="text" id="editUsername" required>
+        </div>
+        <div class="form-group">
+          <label for="editEmail">Email</label>
+          <input type="email" id="editEmail" required>
+        </div>
+        <div class="form-group">
+          <label for="editPassword">Password Baru (kosongkan jika tidak diubah)</label>
+          <input type="password" id="editPassword">
+          <small>Minimal 6 karakter</small>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="editCancelBtn">Batal</button>
+          <button type="submit" class="btn btn-primary" id="editSaveBtn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Hapus User</h3>
+        <button class="modal-close" id="deleteModalClose">&times;</button>
+      </div>
+      <div class="error-msg" id="deleteError"></div>
+      <p style="color: #333; margin-bottom: 24px;">Yakin ingin menghapus user <strong id="deleteUsername"></strong>? Tindakan ini tidak bisa dibatalkan.</p>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="deleteCancelBtn">Batal</button>
+        <button type="button" class="btn btn-danger" id="deleteConfirmBtn">Hapus</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

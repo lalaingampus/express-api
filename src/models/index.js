@@ -1,12 +1,32 @@
 const { Sequelize } = require('sequelize');
 const dbConfig = require('../config/config');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const sequelize = new Sequelize(
   dbConfig.database,
   dbConfig.username,
   dbConfig.password,
-  dbConfig
+  {
+    ...dbConfig,
+    host: dbConfig.host,
+    dialect: dbConfig.dialect,
+    port: dbConfig.port,
+    // Serverless optimizations
+    pool: {
+      max: isProduction ? 1 : 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
+    logging: false,
+  }
 );
+
+// Test connection on cold start
+if (isProduction) {
+  sequelize.authenticate().catch(console.error);
+}
 
 // Import semua model
 const User = require('./user')(sequelize);

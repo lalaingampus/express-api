@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Viewer - Finance Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; padding: 24px; }
+    .container { max-width: 1000px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e5e5e5; overflow: hidden; }
+    .header { padding: 24px; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 20px; font-weight: 600; color: #1a1a1a; }
+    .btn-back { padding: 8px 16px; background: #f5f5f5; border: 1px solid #e5e5e5; border-radius: 6px; font-size: 13px; font-weight: 500; color: #333; text-decoration: none; transition: background 0.2s; }
+    .btn-back:hover { background: #e5e5e5; }
+    .content { padding: 24px; }
+    .loading { display: flex; align-items: center; justify-content: center; padding: 60px; color: #999; }
+    .error { background: #fef2f2; color: #dc2626; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat { background: #fafafa; border: 1px solid #e5e5e5; border-radius: 8px; padding: 16px; }
+    .stat-label { font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .stat-value { font-size: 20px; font-weight: 600; color: #1a1a1a; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    th { background: #fafafa; font-weight: 600; color: #333; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tr:hover td { background: #fafafa; }
+    .empty { text-align: center; color: #999; padding: 40px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+    .badge-lunas { background: #dcfce7; color: #16a34a; }
+    .badge-belum { background: #fef3c7; color: #f59e0b; }
+    .currency { font-family: monospace; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1 id="pageTitle">Memuat...</h1>
+      <a href="/admin/dashboard.html" class="btn-back">← Kembali ke Dashboard</a>
+    </header>
+    <div class="content" id="content">
+      <div class="loading">Memuat data...</div>
+    </div>
+  </div>
+  <script>
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+      window.location.href = '/admin/login';
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const endpoint = urlParams.get('endpoint');
+    const title = urlParams.get('title') || 'API Data';
+
+    document.getElementById('pageTitle').textContent = title;
+
+    async function fetchWithAuth(url) {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return null;
+      }
+      return res.json();
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '-';
+      return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    async function loadData() {
+      const content = document.getElementById('content');
+      try {
+        const data = await fetchWithAuth('/api' + endpoint);
+        if (!data) return;
+
+        if (Array.isArray(data)) {
+          renderTable(data, endpoint);
+        } else if (typeof data === 'object') {
+          renderStats(data);
+        } else {
+          content.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        }
+      } catch (err) {
+        content.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+      }
+    }
+
+    function renderStats(data) {
+      const content = document.getElementById('content');
+      let html = '<div class="stats">';
+      for (const [key, value] of Object.entries(data)) {
+        const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+        const displayValue = typeof value === 'number' ? formatCurrency(value) : value;
+        html += `<div class="stat"><div class="stat-label">${label}</div><div class="stat-value">${displayValue}</div></div>`;
+      }
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function renderTable(data, endpoint) {
+      const content = document.getElementById('content');
+      if (data.length === 0) {
+        content.innerHTML = '<div class="empty">Tidak ada data</div>';
+        return;
+      }
+
+      const keys = Object.keys(data[0]);
+      let html = '<table><thead><tr>';
+      keys.forEach(key => {
+        html += `<th>${key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+      data.forEach(item => {
+        html += '<tr>';
+        keys.forEach(key => {
+          let value = item[key];
+          if (value === null || value === undefined) value = '-';
+          else if (typeof value === 'number' && (key.toLowerCase().includes('jumlah') || key.toLowerCase().includes('amount') || key.toLowerCase().includes('total') || key.toLowerCase().includes('debt') || key.toLowerCase().includes('saldo'))) {
+            value = formatCurrency(value);
+          } else if (value instanceof Date || (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T/))) {
+            value = formatDate(value);
+          } else if (key === 'status' && (value === 'Lunas' || value === 'Belum Lunas')) {
+            value = `<span class="badge ${value === 'Lunas' ? 'badge-lunas' : 'badge-belum'}">${value}</span>`;
+          }
+          html += `<td${typeof value === 'number' ? ' class="currency"' : ''}>${value}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      content.innerHTML = html;
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

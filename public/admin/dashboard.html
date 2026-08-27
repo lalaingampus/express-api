@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Finance Tracker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; }
+    .sidebar { position: fixed; top: 0; left: 0; height: 100vh; width: 260px; background: white; border-right: 1px solid #e5e5e5; padding: 24px 0; display: flex; flex-direction: column; }
+    .sidebar-header { padding: 0 24px 24px; border-bottom: 1px solid #e5e5e5; margin-bottom: 24px; }
+    .sidebar-header h1 { font-size: 18px; font-weight: 600; color: #1a1a1a; }
+    .sidebar-header span { font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+    .nav-menu { list-style: none; flex: 1; padding: 0 12px; }
+    .nav-item { margin-bottom: 4px; }
+    .nav-link { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; color: #444; text-decoration: none; font-size: 14px; font-weight: 500; transition: background 0.2s, color 0.2s; }
+    .nav-link:hover { background: #f0f0f0; color: #1a1a1a; }
+    .nav-link.active { background: #eff6ff; color: #2563eb; }
+    .nav-link svg { width: 20px; height: 20px; flex-shrink: 0; }
+    .nav-link.external { color: #666; }
+    .nav-link.external:hover { background: #f0f0f0; color: #1a1a1a; }
+    .sidebar-footer { padding: 16px 24px; border-top: 1px solid #e5e5e5; }
+    .btn-logout { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s; }
+    .btn-logout:hover { background: #fee2e2; border-color: #fca5a5; }
+    .btn-logout svg { width: 18px; height: 18px; }
+    .main { margin-left: 260px; padding: 32px; min-height: 100vh; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+    .header h2 { font-size: 24px; font-weight: 600; color: #1a1a1a; }
+    .user-info { display: flex; align-items: center; gap: 12px; }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
+    .user-details { display: flex; flex-direction: column; }
+    .user-name { font-weight: 500; color: #1a1a1a; font-size: 14px; }
+    .user-email { font-size: 12px; color: #999; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 32px; }
+    .stat-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e5e5e5; }
+    .stat-card.income { border-left: 4px solid #16a34a; }
+    .stat-card.expense { border-left: 4px solid #dc2626; }
+    .stat-card.debt { border-left: 4px solid #f59e0b; }
+    .stat-card.balance { border-left: 4px solid #2563eb; }
+    .stat-label { font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 600; color: #1a1a1a; }
+    .stat-value.positive { color: #16a34a; }
+    .stat-value.negative { color: #dc2626; }
+    .section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e5e5e5; }
+    .section-title { font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 20px; }
+    .quick-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+    .quick-link { display: flex; align-items: center; gap: 12px; padding: 16px; background: #fafafa; border: 1px solid #e5e5e5; border-radius: 8px; text-decoration: none; color: #333; font-weight: 500; transition: background 0.2s, border-color 0.2s; }
+    .quick-link:hover { background: #f0f0f0; border-color: #d4d4d4; }
+    .quick-link svg { width: 20px; height: 20px; color: #666; }
+    .loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: #999; }
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s; z-index: 100; }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; padding: 20px; }
+      .header { flex-direction: column; gap: 16px; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h1>Finance Tracker</h1>
+      <span>Admin Panel</span>
+    </div>
+    <nav>
+      <ul class="nav-menu">
+        <li class="nav-item">
+          <a href="/admin/dashboard.html" class="nav-link active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="/admin/users.html" class="nav-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Manajemen User
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="/docs" target="_blank" class="nav-link external">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Dokumentasi API (Swagger)
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="btn-logout" id="logoutBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Keluar
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="header">
+      <h2>Dashboard</h2>
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar">A</div>
+        <div class="user-details">
+          <span class="user-name" id="userName">Memuat...</span>
+          <span class="user-email" id="userEmail"></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card income">
+        <div class="stat-label">Total Pemasukan</div>
+        <div class="stat-value positive" id="statPemasukan">Rp 0</div>
+      </div>
+      <div class="stat-card expense">
+        <div class="stat-label">Total Pengeluaran</div>
+        <div class="stat-value negative" id="statPengeluaran">Rp 0</div>
+      </div>
+      <div class="stat-card debt">
+        <div class="stat-label">Total Hutang</div>
+        <div class="stat-value negative" id="statHutang">Rp 0</div>
+      </div>
+      <div class="stat-card balance">
+        <div class="stat-label">Saldo Bersih</div>
+        <div class="stat-value" id="statSaldo">Rp 0</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <h3 class="section-title">Akses Cepat</h3>
+      <div class="quick-links">
+        <a href="/docs" target="_blank" class="quick-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Swagger UI
+        </a>
+        <a href="/admin/api-viewer.html?endpoint=/pemasukan&title=Data+Pemasukan" target="_blank" class="quick-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Data Pemasukan
+        </a>
+        <a href="/admin/api-viewer.html?endpoint=/pengeluaran&title=Data+Pengeluaran" target="_blank" class="quick-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Data Pengeluaran
+        </a>
+        <a href="/admin/api-viewer.html?endpoint=/hutang&title=Data+Hutang" target="_blank" class="quick-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5"/><path d="M3 7v10"/><path d="M21 7v10"/></svg>
+          Data Hutang
+        </a>
+        <a href="/admin/api-viewer.html?endpoint=/nb&title=Data+NB" target="_blank" class="quick-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Data NB
+        </a>
+        <a href="/admin/api-viewer.html?endpoint=/rekap&title=Data+Rekap" target="_blank" class="quick-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+          Data Rekap
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const token = localStorage.getItem('admin_token');
+    console.log('Dashboard loaded, token:', token ? 'exists' : 'missing');
+    if (!token) {
+      window.location.href = '/admin/login';
+    }
+
+    async function fetchWithAuth(url) {
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      console.log(`Fetch ${url}:`, res.status);
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin/login';
+        return null;
+      }
+      return res.json();
+    }
+
+    async function loadStats() {
+      const data = await fetchWithAuth('/admin/stats');
+      if (!data) return;
+      
+      document.getElementById('statPemasukan').textContent = formatCurrency(data.pemasukan);
+      document.getElementById('statPengeluaran').textContent = formatCurrency(data.pengeluaran);
+      document.getElementById('statHutang').textContent = formatCurrency(data.hutang);
+      document.getElementById('statSaldo').textContent = formatCurrency(data.saldo);
+      document.getElementById('statSaldo').className = 'stat-value ' + (data.saldo >= 0 ? 'positive' : 'negative');
+    }
+
+    async function loadUser() {
+      const data = await fetchWithAuth('/admin/verify');
+      if (data && data.user) {
+        document.getElementById('userName').textContent = data.user.username;
+        document.getElementById('userEmail').textContent = data.user.email;
+        document.getElementById('userAvatar').textContent = data.user.username.charAt(0).toUpperCase();
+      }
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('admin_token');
+      window.location.href = '/admin/login';
+    });
+
+    loadStats();
+    loadUser();
+  </script>
+</body>
+</html>
